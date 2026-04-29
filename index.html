@@ -694,7 +694,7 @@ async function fetchOneGdelt(query) {
     return [];
   }
 }
-
+  
 async function fetchAllGdelt() {
   const results = await Promise.all(GDELT_QUERIES.map(q => fetchOneGdelt(q)));
   const seen = new Set();
@@ -709,6 +709,52 @@ async function fetchAllGdelt() {
   }
   console.log(`GDELT: ${merged.length} unique articles from ${results.reduce((s,b) => s + b.length, 0)} total`);
 
+// Add your API keys here
+const GNEWS_API_KEY = 'YOUR_GNEWS_KEY_HERE';
+const NEWSDATA_API_KEY = 'YOUR_NEWSDATA_KEY_HERE';
+
+// --- Fetch GNews ---
+async function fetchGNews() {
+  if (GNEWS_API_KEY === 'b63cca1cf6d96b8a67a9f52bfa0e481f') return [];
+  try {
+    // Fetching top global headlines in English
+    const res = await fetch(`https://gnews.io/api/v4/top-headlines?category=general&lang=en&max=100&apikey=${GNEWS_API_KEY}`);
+    const data = await res.json();
+    if (!data.articles) return [];
+    
+    return data.articles.map(art => ({
+      title: art.title,
+      url: art.url,
+      domain: new URL(art.url).hostname.replace('www.', ''),
+      sourcecountry: art.source.name // Fallback, as GNews doesn't give exact country codes
+    }));
+  } catch (e) {
+    console.warn('GNews fetch failed:', e);
+    return [];
+  }
+}
+
+// --- Fetch NewsData.io ---
+async function fetchNewsData() {
+  if (NEWSDATA_API_KEY === '4aad7a42c85c4617a16ead9f9882d63e') return [];
+  try {
+    // Fetching latest english news
+    const res = await fetch(`https://newsdata.io/api/1/news?apikey=${NEWSDATA_API_KEY}&language=en`);
+    const data = await res.json();
+    if (!data.results) return [];
+
+    return data.results.map(art => ({
+      title: art.title,
+      url: art.link,
+      domain: art.source_id,
+      sourcecountry: art.country ? art.country[0] : ''
+    }));
+  } catch (e) {
+    console.warn('NewsData fetch failed:', e);
+    return [];
+  }
+}
+  
   // ── Fallback demo data ──
   // If GDELT returned nothing (proxy down, rate limited, etc.) use a curated
   // demo set so the globe always has something meaningful to display.
