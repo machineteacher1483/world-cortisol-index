@@ -754,6 +754,7 @@ async function fetchNewsData() {
     return [];
   }
 }
+  
 async function fetchAggregatedNews() {
   // Fire all APIs concurrently to save time
   const [gdeltNews, gnewsData, newsDataIo] = await Promise.all([
@@ -788,7 +789,8 @@ async function fetchAggregatedNews() {
 
   return uniqueArticles;
 }
-  const articles = await fetchAggregatedNews();
+const articles = await fetchAggregatedNews();
+  
   // ── Fallback demo data ──
   // If GDELT returned nothing (proxy down, rate limited, etc.) use a curated
   // demo set so the globe always has something meaningful to display.
