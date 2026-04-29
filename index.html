@@ -1,0 +1,1946 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>World Cortisol Index — Global News Stress Map</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Outfit:wght@200;300;400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+/* ── Reset & Root ── */
+:root {
+  --bg: #04060e;
+  --bg-2: #0a1020;
+  --panel: rgba(8, 16, 36, 0.85);
+  --panel-border: rgba(100, 160, 240, 0.12);
+  --text: #dce4f2;
+  --text-dim: #7a8aa4;
+  --accent: #4da8ff;
+  --accent-2: #a47cff;
+  --good: #2dd47a;
+  --bad: #f0503c;
+  --mid: #e8c840;
+  --font-display: 'Space Mono', monospace;
+  --font-body: 'Outfit', -apple-system, sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font-body); overflow: hidden; }
+
+/* ═══════════════════════════════════════
+   HOMEPAGE
+═══════════════════════════════════════ */
+#homepage {
+  position: fixed; inset: 0; z-index: 200;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  overflow: hidden;
+  transition: opacity 0.9s cubic-bezier(0.4,0,0.2,1), transform 0.9s cubic-bezier(0.4,0,0.2,1);
+}
+#homepage.exiting { opacity: 0; transform: scale(1.04); pointer-events: none; }
+
+/* Canvas particle background */
+#hp-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+/* Scanline grid overlay */
+.hp-grid {
+  position: absolute; inset: 0; pointer-events: none;
+  background-image:
+    linear-gradient(rgba(77, 168, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(77, 168, 255, 0.035) 1px, transparent 1px);
+  background-size: 64px 64px;
+}
+
+/* Vignette */
+.hp-vignette {
+  position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(ellipse at 50% 50%, transparent 40%, rgba(4,6,14,0.75) 100%);
+}
+
+/* Content */
+.hp-content {
+  position: relative; z-index: 1;
+  text-align: center;
+  max-width: 720px;
+  padding: 40px 32px;
+  display: flex; flex-direction: column; align-items: center; gap: 0;
+}
+
+/* Logo ring */
+.hp-logo-ring {
+  width: 96px; height: 96px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(77, 168, 255, 0.2);
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+  margin-bottom: 28px;
+  animation: ringPulse 3s ease-in-out infinite;
+}
+.hp-logo-ring::before {
+  content: '';
+  position: absolute; inset: -8px;
+  border-radius: 50%;
+  border: 1px solid rgba(77, 168, 255, 0.08);
+}
+.hp-logo-ring::after {
+  content: '';
+  position: absolute; inset: -16px;
+  border-radius: 50%;
+  border: 1px solid rgba(77, 168, 255, 0.04);
+}
+@keyframes ringPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(77,168,255,0.15), 0 0 40px rgba(77,168,255,0.1); }
+  50% { box-shadow: 0 0 0 12px rgba(77,168,255,0), 0 0 60px rgba(77,168,255,0.2); }
+}
+.hp-logo-emoji {
+  font-size: 40px;
+  filter: drop-shadow(0 0 16px rgba(77,168,255,0.6));
+  animation: emojiFloat 4s ease-in-out infinite;
+}
+@keyframes emojiFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+/* Title */
+.hp-eyebrow {
+  font-family: var(--font-display);
+  font-size: 10px;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 12px;
+  opacity: 0.7;
+}
+
+.hp-title {
+  font-family: var(--font-display);
+  font-size: clamp(22px, 4vw, 38px);
+  font-weight: 700;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: #fff;
+  line-height: 1.1;
+  margin-bottom: 10px;
+}
+
+.hp-title span {
+  background: linear-gradient(135deg, var(--good) 0%, var(--accent) 50%, var(--bad) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.hp-sub {
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 300;
+  color: rgba(220, 228, 242, 0.5);
+  letter-spacing: 0.3px;
+  margin-bottom: 36px;
+}
+
+/* Stats row */
+.hp-stats {
+  display: flex;
+  gap: 0;
+  margin-bottom: 32px;
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  background: var(--panel);
+  backdrop-filter: blur(12px);
+  overflow: hidden;
+}
+.hp-stat {
+  padding: 16px 28px;
+  text-align: center;
+  position: relative;
+}
+.hp-stat + .hp-stat::before {
+  content: '';
+  position: absolute; left: 0; top: 20%; bottom: 20%;
+  width: 1px;
+  background: var(--panel-border);
+}
+.hp-stat-val {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: -0.5px;
+}
+.hp-stat-lbl {
+  display: block;
+  font-size: 10px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  margin-top: 3px;
+}
+
+/* Description */
+.hp-desc {
+  font-size: 13.5px;
+  color: rgba(220, 228, 242, 0.45);
+  line-height: 1.75;
+  max-width: 520px;
+  margin-bottom: 36px;
+}
+.hp-desc .hp-good { color: var(--good); font-weight: 500; }
+.hp-desc .hp-bad { color: var(--bad); font-weight: 500; }
+
+/* Enter button */
+.hp-enter {
+  display: flex; align-items: center; gap: 10px;
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: #04060e;
+  background: linear-gradient(135deg, #4da8ff 0%, #7b8aff 50%, #a47cff 100%);
+  border: none;
+  border-radius: 8px;
+  padding: 15px 44px;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.2s, box-shadow 0.2s;
+  box-shadow: 0 4px 30px rgba(77, 168, 255, 0.3);
+  margin-bottom: 32px;
+}
+.hp-enter::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.15), transparent);
+  opacity: 0; transition: opacity 0.2s;
+}
+.hp-enter:hover { transform: translateY(-2px); box-shadow: 0 8px 50px rgba(77, 168, 255, 0.45); }
+.hp-enter:hover::before { opacity: 1; }
+.hp-enter:active { transform: translateY(0); }
+.hp-enter svg { transition: transform 0.2s; }
+.hp-enter:hover svg { transform: translateX(4px); }
+
+/* Legend */
+.hp-legend {
+  display: flex; align-items: center; gap: 10px;
+  font-family: var(--font-display);
+  font-size: 9px;
+  color: rgba(220, 228, 242, 0.25);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+.hp-legend-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+}
+.hp-legend-bar {
+  width: 100px; height: 3px; border-radius: 2px;
+  background: linear-gradient(90deg, var(--good), var(--mid), var(--bad));
+}
+
+/* Footer */
+.hp-footer {
+  position: absolute; bottom: 24px; left: 0; right: 0;
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: 9px;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: rgba(220, 228, 242, 0.12);
+}
+
+/* ═══════════════════════════════════════
+   MAIN APP
+═══════════════════════════════════════ */
+#app {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  height: 100vh;
+  opacity: 0;
+  transition: opacity 0.7s 0.2s ease;
+}
+#app.visible { opacity: 1; }
+#app.app-hidden { display: none !important; }
+
+/* ── Topbar ── */
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 11px 22px;
+  background: linear-gradient(180deg, rgba(4,6,14,0.97) 0%, rgba(4,6,14,0.6) 100%);
+  border-bottom: 1px solid var(--panel-border);
+  backdrop-filter: blur(12px);
+  z-index: 10;
+}
+.brand { display: flex; gap: 12px; align-items: center; }
+.brand-icon {
+  width: 34px; height: 34px; border-radius: 9px;
+  background: linear-gradient(135deg, var(--good), var(--bad));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 17px;
+  box-shadow: 0 0 18px rgba(77,168,255,0.2);
+}
+.brand h1 {
+  font-family: var(--font-display); font-size: 13px; font-weight: 700;
+  letter-spacing: 2px; text-transform: uppercase; color: var(--text);
+}
+.brand .tagline { font-size: 10px; color: var(--text-dim); font-weight: 300; margin-top: 1px; }
+
+.topbar-right { display: flex; align-items: center; gap: 12px; }
+.status {
+  font-family: var(--font-display); color: var(--text-dim); font-size: 10px;
+  max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+#refresh {
+  font-family: var(--font-display); background: transparent;
+  color: var(--accent); border: 1px solid rgba(77,168,255,0.3);
+  border-radius: 6px; padding: 5px 12px; font-size: 10px; font-weight: 700;
+  letter-spacing: 1px; text-transform: uppercase; cursor: pointer; transition: all 0.2s;
+}
+#refresh:hover:not(:disabled) { background: rgba(77,168,255,0.1); border-color: var(--accent); }
+#refresh:disabled { opacity: 0.4; cursor: wait; }
+#home-btn {
+  font-family: var(--font-display); background: transparent;
+  color: var(--text-dim); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 6px; padding: 5px 12px; font-size: 10px;
+  letter-spacing: 1px; text-transform: uppercase; cursor: pointer; transition: all 0.2s;
+}
+#home-btn:hover { color: var(--text); border-color: rgba(255,255,255,0.2); }
+
+/* ── Layout ── */
+main {
+  display: grid;
+  grid-template-columns: 1fr 380px;
+  min-height: 0;
+}
+@media (max-width: 900px) {
+  main { grid-template-columns: 1fr; grid-template-rows: 1fr auto; }
+  #sidebar { max-height: 48vh; }
+}
+
+/* ── Globe ── */
+#globe-wrap {
+  position: relative; min-height: 0;
+  background: radial-gradient(ellipse at 50% 55%, rgba(10,40,90,0.3) 0%, transparent 65%);
+}
+#globe { width: 100%; height: 100%; }
+
+#globe-legend {
+  position: absolute; left: 16px; bottom: 14px;
+  background: var(--panel); border: 1px solid var(--panel-border);
+  border-radius: 8px; padding: 8px 14px;
+  backdrop-filter: blur(10px);
+  font-family: var(--font-display); font-size: 9px; color: var(--text-dim);
+  letter-spacing: 0.5px; text-transform: uppercase;
+}
+.lg-row { display: flex; align-items: center; gap: 6px; }
+.lg-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.lg-bar {
+  flex: 1; height: 5px; width: 90px; border-radius: 3px;
+  background: linear-gradient(90deg, var(--good) 0%, var(--mid) 50%, var(--bad) 100%);
+}
+.lg-cap { margin-top: 4px; font-size: 8px; text-align: center; }
+
+/* Loading overlay */
+#loading-overlay {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  background: var(--bg); z-index: 20; transition: opacity 0.6s;
+}
+#loading-overlay.hidden { opacity: 0; pointer-events: none; }
+.loader-ring {
+  width: 44px; height: 44px;
+  border: 3px solid rgba(77,168,255,0.12);
+  border-top-color: var(--accent);
+  border-radius: 50%; animation: spin 1s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loader-text {
+  font-family: var(--font-display); font-size: 10px; color: var(--text-dim);
+  margin-top: 14px; letter-spacing: 1.5px; text-transform: uppercase;
+  text-align: center; max-width: 280px;
+}
+.loader-progress {
+  margin-top: 10px; width: 200px; height: 2px;
+  background: rgba(77,168,255,0.1); border-radius: 1px; overflow: hidden;
+}
+.loader-fill {
+  height: 100%; background: var(--accent); border-radius: 1px;
+  width: 0%; transition: width 0.4s ease;
+}
+
+/* ── Sidebar ── */
+#sidebar {
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 12px; overflow-y: auto;
+  border-left: 1px solid var(--panel-border);
+  background: linear-gradient(180deg, rgba(4,6,14,0.5), rgba(4,6,14,0.85));
+}
+#sidebar::-webkit-scrollbar { width: 4px; }
+#sidebar::-webkit-scrollbar-track { background: transparent; }
+#sidebar::-webkit-scrollbar-thumb { background: rgba(100,160,240,0.12); border-radius: 2px; }
+#sidebar::-webkit-scrollbar-thumb:hover { background: rgba(100,160,240,0.25); }
+
+.panel {
+  background: var(--panel); border: 1px solid var(--panel-border);
+  border-radius: 10px; padding: 13px 15px; backdrop-filter: blur(10px);
+}
+.panel h2 {
+  font-family: var(--font-display); font-size: 10px; font-weight: 700;
+  letter-spacing: 1.8px; text-transform: uppercase; color: var(--text-dim);
+  margin-bottom: 8px;
+}
+.hint { font-size: 12px; color: var(--text-dim); font-weight: 300; }
+
+/* Archive panel */
+.archive-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 8px; margin-top: 4px;
+}
+.archive-cell {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.04);
+  border-radius: 6px; padding: 8px 10px;
+}
+.archive-val {
+  font-family: var(--font-display); font-size: 16px;
+  font-weight: 700; color: var(--accent);
+}
+.archive-lbl {
+  font-size: 10px; color: var(--text-dim);
+  text-transform: uppercase; letter-spacing: 0.8px;
+  margin-top: 2px;
+}
+.api-badges {
+  display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px;
+}
+.api-badge {
+  font-family: var(--font-display); font-size: 8px;
+  letter-spacing: 0.8px; text-transform: uppercase;
+  padding: 2px 7px; border-radius: 3px;
+  border: 1px solid;
+}
+.api-badge.gdelt { color: #4da8ff; border-color: rgba(77,168,255,0.3); }
+.api-badge.gnews { color: #a47cff; border-color: rgba(164,124,255,0.3); }
+.api-badge.newsdata { color: #2dd47a; border-color: rgba(45,212,122,0.3); }
+.api-badge.newsapi { color: #e8c840; border-color: rgba(232,200,64,0.3); }
+
+/* Article panel */
+.loc-name { font-family: var(--font-display); font-size: 14px; font-weight: 700; color: #fff; }
+.loc-summary {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 7px;
+  margin: 7px 0 11px; font-size: 11px;
+}
+.country { color: var(--text-dim); font-size: 11px; }
+.count { color: var(--text-dim); font-size: 10px; font-family: var(--font-display); }
+.badge {
+  display: inline-block; padding: 3px 8px; border-radius: 4px;
+  font-family: var(--font-display); font-size: 9px; font-weight: 700;
+  color: #000; letter-spacing: 0.5px; white-space: nowrap;
+}
+.badge.big { font-size: 10px; padding: 4px 10px; }
+.articles { list-style: none; display: flex; flex-direction: column; gap: 7px; max-height: 300px; overflow-y: auto; }
+.articles::-webkit-scrollbar { width: 3px; }
+.articles::-webkit-scrollbar-thumb { background: rgba(100,160,240,0.15); border-radius: 2px; }
+.article {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.04);
+  border-radius: 6px; padding: 9px 11px; transition: all 0.15s;
+}
+.article:hover { border-color: rgba(77,168,255,0.25); background: rgba(77,168,255,0.04); }
+.article-title {
+  display: block; color: var(--text); text-decoration: none;
+  font-size: 12px; font-weight: 400; line-height: 1.4;
+}
+.article-title:hover { color: var(--accent); }
+.article-meta {
+  margin-top: 5px; display: flex; flex-wrap: wrap; align-items: center;
+  gap: 6px; font-size: 10px; color: var(--text-dim);
+}
+.article-meta .src { font-style: italic; }
+.article-meta .api-tag {
+  font-family: var(--font-display); font-size: 8px;
+  padding: 1px 5px; border-radius: 3px; text-transform: uppercase;
+}
+
+/* Chart */
+#chart-wrap { position: relative; height: 320px; }
+.chart-summary {
+  margin-top: 6px; font-size: 10px; color: var(--text-dim);
+  font-family: var(--font-display); letter-spacing: 0.3px;
+}
+
+/* Tooltips */
+.tt {
+  background: rgba(4,6,14,0.95);
+  border: 1px solid rgba(100,160,240,0.2);
+  border-radius: 6px; padding: 6px 10px;
+  font-size: 12px; color: var(--text); font-family: var(--font-body);
+  pointer-events: none; box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+}
+.tt b { color: #fff; }
+.tt-sub { color: var(--text-dim); margin-left: 4px; font-size: 10px; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════
+     HOMEPAGE
+═══════════════════════════════════════ -->
+<div id="homepage">
+  <canvas id="hp-canvas"></canvas>
+  <div class="hp-grid"></div>
+  <div class="hp-vignette"></div>
+
+  <div class="hp-content">
+    <div class="hp-logo-ring">
+      <span class="hp-logo-emoji">🧠</span>
+    </div>
+
+    <p class="hp-eyebrow">A Global Intelligence Project</p>
+    <h1 class="hp-title"><span>World Cortisol Index</span></h1>
+    <p class="hp-sub">Real-time global stress, mapped on a living 3D Earth</p>
+
+    <div class="hp-stats">
+      <div class="hp-stat">
+        <span class="hp-stat-val" id="hp-total">—</span>
+        <span class="hp-stat-lbl">Articles Stored</span>
+      </div>
+      <div class="hp-stat">
+        <span class="hp-stat-val" id="hp-countries">—</span>
+        <span class="hp-stat-lbl">Countries</span>
+      </div>
+      <div class="hp-stat">
+        <span class="hp-stat-val">4</span>
+        <span class="hp-stat-lbl">News APIs</span>
+      </div>
+      <div class="hp-stat">
+        <span class="hp-stat-val" id="hp-since">—</span>
+        <span class="hp-stat-lbl">Tracking Since</span>
+      </div>
+    </div>
+
+    <p class="hp-desc">
+      The World Cortisol Index monitors planetary stress through live news analysis.
+      Articles accumulate from <strong style="color:var(--text)">GDELT, GNews, NewsData &amp; NewsAPI</strong>
+      — building a growing historical record. Each country is scored 0→1
+      from <span class="hp-good">calm (green)</span> to <span class="hp-bad">stressed (red)</span>
+      based on headline sentiment. The globe breathes with the world's anxiety.
+    </p>
+
+    <button id="hp-enter" class="hp-enter">
+      <span>ENTER THE GLOBE</span>
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <path d="M2 7h10M8 3l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </button>
+
+    <div class="hp-legend">
+      <div class="hp-legend-dot" style="background:var(--good)"></div>
+      <span>Calm</span>
+      <div class="hp-legend-bar"></div>
+      <span>Stressed</span>
+      <div class="hp-legend-dot" style="background:var(--bad)"></div>
+    </div>
+  </div>
+
+  <div class="hp-footer">
+    POWERED BY GDELT · GNEWS · NEWSDATA · NEWSAPI &nbsp;·&nbsp; ARTICLES ACCUMULATE OVER TIME
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════
+     MAIN APP
+═══════════════════════════════════════ -->
+<div id="app" class="app-hidden">
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-icon">🧠</div>
+      <div>
+        <h1>World Cortisol Index</h1>
+        <p class="tagline">Live global news stress · Accumulated archive</p>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <span id="status" class="status">INITIALIZING…</span>
+      <button id="home-btn" type="button">⌂ HOME</button>
+      <button id="refresh" type="button">↻ REFRESH</button>
+    </div>
+  </header>
+
+  <main>
+    <div id="globe-wrap">
+      <div id="loading-overlay">
+        <div class="loader-ring"></div>
+        <div class="loader-text" id="loader-text">Initializing…</div>
+        <div class="loader-progress"><div class="loader-fill" id="loader-fill"></div></div>
+      </div>
+      <div id="globe"></div>
+      <div id="globe-legend">
+        <div class="lg-row">
+          <span class="lg-dot" style="background:var(--good)"></span>
+          <span>calm</span>
+          <span class="lg-bar"></span>
+          <span>stressed</span>
+          <span class="lg-dot" style="background:var(--bad)"></span>
+        </div>
+        <div class="lg-cap">cortisol · 0 → 1</div>
+      </div>
+    </div>
+
+    <aside id="sidebar">
+      <!-- Archive panel -->
+      <section id="archive-panel" class="panel">
+        <h2>📦 Article Archive</h2>
+        <div class="archive-grid">
+          <div class="archive-cell">
+            <div class="archive-val" id="arc-total">—</div>
+            <div class="archive-lbl">Total Stored</div>
+          </div>
+          <div class="archive-cell">
+            <div class="archive-val" id="arc-session">—</div>
+            <div class="archive-lbl">This Session</div>
+          </div>
+          <div class="archive-cell">
+            <div class="archive-val" id="arc-countries">—</div>
+            <div class="archive-lbl">Countries</div>
+          </div>
+          <div class="archive-cell">
+            <div class="archive-val" id="arc-since">—</div>
+            <div class="archive-lbl">Tracking Since</div>
+          </div>
+        </div>
+        <div class="api-badges" id="api-badges">
+          <span class="api-badge gdelt">GDELT</span>
+          <span class="api-badge gnews">GNews</span>
+          <span class="api-badge newsdata">NewsData</span>
+          <span class="api-badge newsapi">NewsAPI</span>
+        </div>
+      </section>
+
+      <!-- Article panel -->
+      <section id="article-panel" class="panel">
+        <h2>📍 Selected Location</h2>
+        <p class="hint">Click a marker on the globe to see its news articles.</p>
+      </section>
+
+      <!-- Chart panel -->
+      <section id="chart-panel" class="panel">
+        <h2>📊 Global Cortisol Index</h2>
+        <div id="chart-wrap"><canvas id="chart"></canvas></div>
+        <div id="chart-summary" class="chart-summary"></div>
+      </section>
+    </aside>
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/globe.gl@2.32.0/dist/globe.gl.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+/* =====================================================================
+   WORLD CORTISOL INDEX — Enhanced v2
+   Multi-API: GDELT + GNews + NewsData + NewsAPI
+   Article accumulation via localStorage (7-day rolling archive)
+   ===================================================================== */
+
+// ── Dynamic script loader with CDN fallback ──
+function loadScript(primary, fallback) {
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = primary;
+    s.onload = resolve;
+    s.onerror = () => {
+      console.warn(`Script failed from ${primary}, trying fallback…`);
+      const s2 = document.createElement('script');
+      s2.src = fallback;
+      s2.onload = resolve;
+      s2.onerror = () => reject(new Error(`Could not load script: ${primary}`));
+      document.head.appendChild(s2);
+    };
+    document.head.appendChild(s);
+  });
+}
+
+// Check if already loaded (from the static tags above), else re-fetch from fallback
+async function ensureLibs() {
+  const tasks = [];
+  if (typeof THREE === 'undefined') {
+    tasks.push(loadScript(
+      'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js',
+      'https://unpkg.com/three@0.160.0/build/three.min.js'
+    ));
+  }
+  if (typeof Globe === 'undefined') {
+    tasks.push(loadScript(
+      'https://cdn.jsdelivr.net/npm/globe.gl@2.32.0/dist/globe.gl.min.js',
+      'https://unpkg.com/globe.gl@2.32.0/dist/globe.gl.min.js'
+    ));
+  }
+  if (typeof Chart === 'undefined') {
+    tasks.push(loadScript(
+      'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js',
+      'https://unpkg.com/chart.js@4.4.1/dist/chart.umd.min.js'
+    ));
+  }
+  if (tasks.length) await Promise.all(tasks);
+}
+
+// ── API Keys ──
+const GNEWS_KEY    = 'b63cca1cf6d96b8a67a9f52bfa0e481f';
+const NEWSDATA_KEY = '4aad7a42c85c4617a16ead9f9882d63e';
+const NEWSAPI_KEY  = '4aad7a42c85c4617a16ead9f9882d63e';
+
+// ── Data URLs ──
+const NATURAL_EARTH  = 'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson';
+const COUNTRIES_URL  = `${NATURAL_EARTH}/ne_110m_admin_0_countries.geojson`;
+const CITIES_URL     = `${NATURAL_EARTH}/ne_50m_populated_places_simple.geojson`;
+
+// ── CORS proxy cascade (tried in order until one works) ──
+const PROXY_LIST = [
+  u => `https://corsproxy.io/?${encodeURIComponent(u)}`,
+  u => `https://api.allorigins.win/get?url=${encodeURIComponent(u)}`,
+  u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
+  u => `https://thingproxy.freeboard.io/fetch/${u}`,
+];
+
+// ── LocalStorage ──
+const STORE_KEY   = 'wci_v2_store';
+const MAX_AGE_MS  = 7 * 24 * 3600 * 1000; // 7 days
+const MAX_STORED  = 8000;
+
+// ─────────────────────────────────────────
+// SENTIMENT LEXICONS
+// ─────────────────────────────────────────
+const NEGATIVE_WORDS = new Set(`
+war wars killed kills death deaths dead dies died dying attack attacks attacked
+attacker bomb bombs bombed bombing crisis crashes crashed crash riot riots
+protest protests protesting arrest arrests arrested controversy conflict
+conflicts unrest terror terrorism disaster disasters shooting shootings
+tragedy tragic fraud scandal scandals recession collapse collapsed massacre
+massacres suicide murder murders murdered assault assaulted victim victims
+injured injuries casualties casualty threat threats threaten threatened
+warn warns warning panic crackdown condemn condemns condemned sanction
+sanctions impeach impeached indict indicted jailed convict convicted crime
+criminal crimes rob robbed robbery theft hate hatred tension tensions clash
+clashes militant militants terrorist terrorists rebel rebels insurgent
+insurgents outrage outraged plunge plunged slump slumps plummet plummeted
+tumble default bankrupt bankruptcy layoff layoffs sued lawsuit probe probes
+dictator suspend suspended ban banned quit resign resigned sacked expel
+expelled flee fled famine outbreak epidemic pandemic rape raped abuse abused
+hostage hostages genocide hostile illegal lethal deadly wounded wound flood
+floods earthquake quake hurricane typhoon wildfire wildfires drought drone
+strikes strike bombing missile missiles invade invaded invasion seized siege
+blockade evacuate evacuated evacuation stab stabbed stabbing hijack hijacked
+poison poisoned shot shoot shooter gunman gunmen militia militias raid raided
+fighting fight fights deny denied denial protester protesters loot looted
+looters looting smuggle smuggled trafficking trafficked abusive corrupt
+corruption blackmail extort extortion harass harassment harassed explosion
+exploded explosive explosions detonated detonation injured hostility nuclear
+biological chemical weapons weapon armed airstrike airstrikes shelling shelled
+displaced displacement refugee refugees asylum crisis emergenc
+`.trim().split(/\s+/));
+
+const POSITIVE_WORDS = new Set(`
+win wins won winner winners victory victories peace peaceful agreement
+agreements breakthrough treaty treaties donation donations donate donated
+raised raise raises award awarded awards recover recovered recovers recovery
+save saves saved saving rescue rescues rescued celebrate celebrated celebration
+prosperity prosperous education educated educate health healthy healed healing
+vaccine vaccines cure cures hero heroes heroic progress milestone achieve
+achieved achievement success successes successful growth grow grows grew growing
+thrive thrived thrives reform reforms reformed approve approved endorses support
+supports supported partnership partnerships partner reconcile reconciled reunite
+reunited liberate liberated freedom liberty justice fair fairness equality
+dignity honor honored kindness kind generous generosity charity charities
+volunteer volunteers medal medals gold silver bronze champion championship
+remarkable excellent excellence wonderful amazing impressive spectacular
+beautiful glorious triumph triumphs triumphant prevail prevailed optimistic
+optimism hope hopes hopeful positive inspire inspired inspiring inspiration
+uplift uplifted joy joyful happiness happy delight delighted grateful gratitude
+thanks thanked blessing blessed pioneer pioneering innovate innovated innovation
+innovative launch launches launched boost boosts boosted strengthen collaborate
+collaborated collaboration unite united unify renew renewed prosper prosperity
+flourish flourishing thriving vibrant sustainable development advance advances
+advanced invest investment investment fund funded funding breakthrough discovery
+discovered alliance peace-deal diplomatic diplomacy accord historically record
+surpass surpassed exceeded exceeding landmark achieve historic monumental
+humanitarian aid helping helped awarded scholarship donated clean renewable
+`.trim().split(/\s+/));
+
+const AMBIGUOUS_CITIES = new Set([
+  'search','page','home','news','today','world','global','report',
+  'city','town','state','north','south','east','west','of','the',
+  'and','york','lincoln','victoria','mobile','phoenix','venus',
+  'jupiter','amazon','apple','shell','santiago',
+]);
+
+const COUNTRY_ALIASES = {
+  'america':'US','u.s.':'US','u.s':'US','us':'US','usa':'US','united states':'US',
+  'uk':'GB','u.k.':'GB','britain':'GB','england':'GB','scotland':'GB','wales':'GB','great britain':'GB',
+  'russia':'RU','russian':'RU','china':'CN','chinese':'CN','beijing':'CN',
+  'iran':'IR','iranian':'IR','iraq':'IQ','iraqi':'IQ',
+  'israel':'IL','israeli':'IL','palestine':'PS','palestinian':'PS','gaza':'PS','west bank':'PS',
+  'ukraine':'UA','ukrainian':'UA','kyiv':'UA','kyiv':'UA','syria':'SY','syrian':'SY',
+  'north korea':'KP','south korea':'KR','korea':'KR',
+  'japan':'JP','japanese':'JP','tokyo':'JP','india':'IN','indian':'IN','delhi':'IN','mumbai':'IN',
+  'pakistan':'PK','afghan':'AF','afghanistan':'AF',
+  'germany':'DE','german':'DE','berlin':'DE','france':'FR','french':'FR','paris':'FR',
+  'spain':'ES','spanish':'ES','madrid':'ES','italy':'IT','italian':'IT','rome':'IT',
+  'turkey':'TR','turkish':'TR','ankara':'TR','egypt':'EG','egyptian':'EG','cairo':'EG',
+  'brazil':'BR','brazilian':'BR','mexico':'MX','mexican':'MX',
+  'canada':'CA','canadian':'CA','ottawa':'CA','australia':'AU','australian':'AU',
+  'south africa':'ZA','nigeria':'NG','kenya':'KE','ethiopia':'ET',
+  'saudi':'SA','saudi arabia':'SA','yemen':'YE','lebanon':'LB','lebanese':'LB',
+  'venezuela':'VE','argentina':'AR','chile':'CL','colombia':'CO',
+  'vietnam':'VN','thailand':'TH','indonesia':'ID','malaysia':'MY',
+  'philippines':'PH','filipino':'PH','taiwan':'TW','hong kong':'HK',
+  'sudan':'SD','south sudan':'SS','myanmar':'MM','burma':'MM',
+  'european union':'EU','poland':'PL','ukraine':'UA',
+  'bangladesh':'BD','sri lanka':'LK','nepal':'NP','cambodia':'KH',
+  'peru':'PE','ecuador':'EC','bolivia':'BO','paraguay':'PY','uruguay':'UY',
+  'morocco':'MA','algeria':'DZ','tunisia':'TN','libya':'LY',
+  'ghana':'GH','senegal':'SN','cameroon':'CM','ivory coast':'CI','tanzania':'TZ',
+  'angola':'AO','mozambique':'MZ','zambia':'ZM','zimbabwe':'ZW',
+  'sweden':'SE','norway':'NO','finland':'FI','denmark':'DK','netherlands':'NL',
+  'belgium':'BE','austria':'AT','switzerland':'CH','portugal':'PT','greece':'GR',
+  'czech republic':'CZ','czechia':'CZ','hungary':'HU','romania':'RO','bulgaria':'BG',
+  'serbia':'RS','croatia':'HR','slovakia':'SK','slovenia':'SI',
+  'israel':'IL','jordan':'JO','uae':'AE','united arab emirates':'AE',
+  'kuwait':'KW','qatar':'QA','bahrain':'BH','oman':'OM',
+  'singapore':'SG','new zealand':'NZ','ireland':'IE',
+};
+
+// ─────────────────────────────────────────
+// DOM REFS
+// ─────────────────────────────────────────
+const $status      = document.getElementById('status');
+const $articlePanel= document.getElementById('article-panel');
+const $chartSummary= document.getElementById('chart-summary');
+const $refresh     = document.getElementById('refresh');
+const $overlay     = document.getElementById('loading-overlay');
+const $loaderText  = document.getElementById('loader-text');
+const $loaderFill  = document.getElementById('loader-fill');
+const $arcTotal    = document.getElementById('arc-total');
+const $arcSession  = document.getElementById('arc-session');
+const $arcCountries= document.getElementById('arc-countries');
+const $arcSince    = document.getElementById('arc-since');
+
+// ─────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────
+let news         = null;
+let countriesGeo = null;
+let citiesGeo    = null;
+let globe        = null;
+let chart        = null;
+let citiesIndex  = null;
+let citiesRegex  = null;
+let countryCentroids  = null;
+let countryRegex      = null;
+let countryTopCities  = null;
+let sessionNewCount   = 0;
+let globeInitialized  = false;
+
+// ─────────────────────────────────────────
+// UTILITIES
+// ─────────────────────────────────────────
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c =>
+    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function isoOf(f) {
+  const p = f.properties || {};
+  for (const k of ['ISO_A2_EH','ISO_A2','WB_A2','FIPS_10_']) {
+    const v = p[k]; if (v && v !== '-99' && v.trim()) return v;
+  }
+  return null;
+}
+function nameOf(f) {
+  const p = f.properties || {};
+  return p.NAME || p.ADMIN || p.NAME_LONG || 'Unknown';
+}
+function cortisolColor(c, alpha=1) {
+  const x = Math.max(0, Math.min(1, c));
+  const hue = (1 - x) * 120;
+  const sat = 55 + Math.abs(0.5 - x) * 30;
+  const light = 50 - Math.abs(0.5 - x) * 5;
+  return `hsla(${hue.toFixed(1)}, ${sat.toFixed(0)}%, ${light.toFixed(0)}%, ${alpha})`;
+}
+function hashStr(s) {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+  return Math.abs(h) >>> 0;
+}
+function jitter(url, lat, lon, deg=2.5) {
+  const h = hashStr(url);
+  const rx = ((h & 0xFFFF) / 0xFFFF) - 0.5;
+  const ry = (((h >> 16) & 0xFFFF) / 0xFFFF) - 0.5;
+  return [lat + ry * deg, lon + rx * deg];
+}
+function extractDomain(url) {
+  try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; }
+}
+
+// Fetch with AbortController timeout
+async function fetchWithTimeout(url, ms=14000) {
+  const ctrl = new AbortController();
+  const tid  = setTimeout(() => ctrl.abort(), ms);
+  try {
+    const r = await fetch(url, { signal: ctrl.signal });
+    clearTimeout(tid);
+    return r;
+  } catch(e) { clearTimeout(tid); throw e; }
+}
+
+// Try each proxy in order; return raw text on first success
+async function fetchViaProxies(targetUrl, timeoutMs=12000) {
+  for (const mkProxy of PROXY_LIST) {
+    try {
+      const r = await fetchWithTimeout(mkProxy(targetUrl), timeoutMs);
+      if (!r.ok) continue;
+      const raw = await r.text();
+      // allorigins wraps response; others return raw
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.contents !== undefined) return parsed.contents;
+      } catch {}
+      return raw;
+    } catch(e) { console.warn(`Proxy attempt failed: ${e.message}`); }
+  }
+  throw new Error(`All proxies failed for: ${targetUrl}`);
+}
+
+// Fetch JSON: direct first, then proxy cascade
+async function fetchJsonAny(url) {
+  try {
+    const r = await fetchWithTimeout(url, 10000);
+    if (r.ok) return r.json();
+  } catch {}
+  return JSON.parse(await fetchViaProxies(url));
+}
+
+// Fetch a target URL via proxies and parse the inner JSON
+async function fetchProxiedJson(url) {
+  return JSON.parse(await fetchViaProxies(url));
+}
+
+function setProgress(pct) {
+  $loaderFill.style.width = `${Math.min(100, pct)}%`;
+}
+function fmtNum(n) {
+  return n >= 1000 ? `${(n/1000).toFixed(1)}k` : String(n);
+}
+function fmtDate(ts) {
+  if (!ts) return '—';
+  const d = new Date(ts);
+  return d.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+}
+
+// ─────────────────────────────────────────
+// SENTIMENT
+// ─────────────────────────────────────────
+const wordRe = /[A-Za-z][A-Za-z'-]+/g;
+function computeTone(text) {
+  if (!text) return 0;
+  let pos = 0, neg = 0;
+  for (const w of (text.toLowerCase().match(wordRe) || [])) {
+    if (POSITIVE_WORDS.has(w)) pos++;
+    if (NEGATIVE_WORDS.has(w)) neg++;
+  }
+  if (pos === 0 && neg === 0) return 0;
+  return (pos - neg) / (pos + neg);
+}
+function toneToCortisol(tone) {
+  return Math.max(0, Math.min(1, (1 - tone) / 2));
+}
+
+// ─────────────────────────────────────────
+// LOCALSTORE ACCUMULATION
+// ─────────────────────────────────────────
+function loadStore() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (!raw) return { articles: [], firstFetch: null };
+    const s = JSON.parse(raw);
+    const cutoff = Date.now() - MAX_AGE_MS;
+    const fresh = (s.articles || []).filter(a => a.fetchedAt > cutoff);
+    return { articles: fresh, firstFetch: s.firstFetch || null };
+  } catch { return { articles: [], firstFetch: null }; }
+}
+
+function mergeIntoStore(newArticles) {
+  const store = loadStore();
+  const seenUrls = new Set(store.articles.map(a => a.url));
+  let added = 0;
+  for (const a of newArticles) {
+    if (!a.url || seenUrls.has(a.url)) continue;
+    seenUrls.add(a.url);
+    store.articles.push({ ...a, fetchedAt: Date.now() });
+    added++;
+  }
+  // Trim to max
+  if (store.articles.length > MAX_STORED) {
+    store.articles.sort((a,b) => b.fetchedAt - a.fetchedAt);
+    store.articles = store.articles.slice(0, MAX_STORED);
+  }
+  if (!store.firstFetch) store.firstFetch = Date.now();
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify({ articles: store.articles, firstFetch: store.firstFetch }));
+  } catch(e) {
+    // Trim more aggressively if storage full
+    store.articles = store.articles.slice(0, 3000);
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(store)); } catch {}
+  }
+  return { merged: store.articles, added, firstFetch: store.firstFetch };
+}
+
+function updateArchivePanel(total, session, countryCount, firstFetch) {
+  $arcTotal.textContent    = fmtNum(total);
+  $arcSession.textContent  = `+${fmtNum(session)}`;
+  $arcCountries.textContent= countryCount;
+  $arcSince.textContent    = fmtDate(firstFetch);
+  // Homepage stats
+  const hpTotal    = document.getElementById('hp-total');
+  const hpCountries= document.getElementById('hp-countries');
+  const hpSince    = document.getElementById('hp-since');
+  if (hpTotal)     hpTotal.textContent    = fmtNum(total);
+  if (hpCountries) hpCountries.textContent= countryCount || '—';
+  if (hpSince)     hpSince.textContent    = fmtDate(firstFetch);
+}
+
+// ─────────────────────────────────────────
+// GEO INDEXES
+// ─────────────────────────────────────────
+function buildCitiesIndex() {
+  if (citiesIndex) return;
+  const rows = [], seen = new Set();
+  for (const f of citiesGeo.features) {
+    const p = f.properties || {};
+    const name = (p.name || p.NAME || '').trim();
+    if (!name || name.length < 4 || AMBIGUOUS_CITIES.has(name.toLowerCase())) continue;
+    const coords = (f.geometry || {}).coordinates || [];
+    if (coords.length < 2) continue;
+    const country = (p.adm0name || p.ADM0NAME || '').trim();
+    const key = name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    rows.push({ key, name, lat: coords[1], lon: coords[0], country });
+  }
+  rows.sort((a, b) => b.key.length - a.key.length);
+  citiesIndex = new Map(rows.map(r => [r.key, r]));
+  const pattern = '\\b(' + rows.map(r => r.key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')\\b';
+  citiesRegex = new RegExp(pattern, 'i');
+}
+
+function buildCountryCentroids() {
+  if (countryCentroids) return;
+  const byName = {}, byIso = {};
+  for (const f of countriesGeo.features) {
+    const p = f.properties || {};
+    const bb = bbox(f.geometry || {});
+    if (!bb) continue;
+    let cx = (bb[0]+bb[2])/2, cy = (bb[1]+bb[3])/2;
+    if (p.LABEL_X != null && p.LABEL_Y != null) { cx = +p.LABEL_X; cy = +p.LABEL_Y; }
+    const iso = isoOf(f), name = nameOf(f);
+    const rec = { lat: cy, lon: cx, name, iso, bbox: bb };
+    if (iso) byIso[iso] = rec;
+    for (const nk of [name, p.NAME_LONG, p.ADMIN, p.FORMAL_EN, p.NAME_SORT]) {
+      if (nk) byName[String(nk).trim().toLowerCase()] = rec;
+    }
+  }
+  for (const [alias, iso] of Object.entries(COUNTRY_ALIASES)) {
+    if (byIso[iso]) byName[alias] = byIso[iso];
+  }
+  const nameKeys = Object.keys(byName).filter(k => k.length >= 3).sort((a,b) => b.length - a.length);
+  const pattern = '\\b(' + nameKeys.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')\\b';
+  countryRegex = new RegExp(pattern, 'i');
+  countryCentroids = { byName, byIso };
+}
+
+function buildCountryTopCities() {
+  if (countryTopCities) return;
+  const byCountry = {};
+  for (const f of citiesGeo.features) {
+    const p = f.properties || {};
+    const name = (p.name || '').trim();
+    const country = (p.adm0name || '').trim();
+    const coords = (f.geometry || {}).coordinates || [];
+    if (!name || !country || coords.length < 2) continue;
+    const pop = parseInt(p.pop_max) || 0;
+    const key = country.toLowerCase();
+    if (!byCountry[key]) byCountry[key] = [];
+    byCountry[key].push({ name, lat: coords[1], lon: coords[0], pop });
+  }
+  for (const k of Object.keys(byCountry)) {
+    byCountry[k].sort((a, b) => b.pop - a.pop);
+    byCountry[k] = byCountry[k].slice(0, 25);
+  }
+  countryTopCities = byCountry;
+}
+
+function bbox(geom) {
+  let minx=Infinity, miny=Infinity, maxx=-Infinity, maxy=-Infinity, rings;
+  if (geom.type==='Polygon') rings=[geom.coordinates[0]];
+  else if (geom.type==='MultiPolygon') rings=geom.coordinates.map(p=>p[0]);
+  else return null;
+  for (const ring of rings) for (const [x,y] of ring) {
+    if (x<minx) minx=x; if (x>maxx) maxx=x; if (y<miny) miny=y; if (y>maxy) maxy=y;
+  }
+  return [minx, miny, maxx, maxy];
+}
+
+function pickCountryCity(countryName, url) {
+  if (!countryName) return null;
+  const cities = countryTopCities[countryName.trim().toLowerCase()];
+  if (!cities || !cities.length) return null;
+  return cities[hashStr(url) % cities.length];
+}
+
+// ─────────────────────────────────────────
+// GEOCODING
+// ─────────────────────────────────────────
+function geocodeArticle(title, sourcecountry, url) {
+  if (!citiesRegex || !countryRegex || !countryCentroids) return null;
+  if (title) {
+    const cm = citiesRegex.exec(title);
+    if (cm) {
+      const row = citiesIndex.get(cm[1].toLowerCase());
+      if (row) {
+        let ciso = null;
+        if (row.country) {
+          const cr = countryCentroids.byName[row.country.toLowerCase()];
+          if (cr) ciso = cr.iso;
+        }
+        const [jlat, jlon] = jitter(url, row.lat, row.lon, 0.4);
+        return { lat: jlat, lon: jlon, place: row.name, iso: ciso, country: row.country || null };
+      }
+    }
+    const crm = countryRegex.exec(title);
+    if (crm) {
+      const rec = countryCentroids.byName[crm[1].toLowerCase()];
+      if (rec) {
+        const city = pickCountryCity(rec.name, url);
+        if (city) {
+          const [jl, jo] = jitter(url, city.lat, city.lon, 0.3);
+          return { lat: jl, lon: jo, place: city.name, iso: rec.iso, country: rec.name };
+        }
+        const [jl, jo] = jitter(url, rec.lat, rec.lon, 2.5);
+        return { lat: jl, lon: jo, place: rec.name, iso: rec.iso, country: rec.name };
+      }
+    }
+  }
+  if (sourcecountry) {
+    const sc = sourcecountry.trim().toLowerCase();
+    // Try alias lookup first
+    const aliasIso = COUNTRY_ALIASES[sc];
+    let rec = null;
+    if (aliasIso && countryCentroids.byIso[aliasIso]) {
+      rec = countryCentroids.byIso[aliasIso];
+    } else {
+      rec = countryCentroids.byName[sc];
+      if (!rec && sc.length === 2) rec = countryCentroids.byIso[sc.toUpperCase()];
+    }
+    if (rec) {
+      const city = pickCountryCity(rec.name, url);
+      if (city) {
+        const [jl, jo] = jitter(url, city.lat, city.lon, 0.3);
+        return { lat: jl, lon: jo, place: city.name, iso: rec.iso, country: rec.name };
+      }
+      const [jl, jo] = jitter(url, rec.lat, rec.lon, 2.5);
+      return { lat: jl, lon: jo, place: rec.name, iso: rec.iso, country: rec.name };
+    }
+  }
+  return null;
+}
+
+// ─────────────────────────────────────────
+// API — GDELT
+// ─────────────────────────────────────────
+const GDELT_BASE = 'https://api.gdeltproject.org/api/v2/doc/doc';
+const GDELT_QUERIES = [
+  'sourcelang:eng',
+  '(domain:bbc.com OR domain:reuters.com OR domain:apnews.com OR domain:cnn.com OR domain:aljazeera.com OR domain:theguardian.com OR domain:nytimes.com OR domain:dw.com OR domain:france24.com OR domain:bloomberg.com OR domain:washingtonpost.com) sourcelang:eng',
+  '(theme:KILL OR theme:ARMEDCONFLICT OR theme:PROTEST OR theme:CRISISLEX_T03_DEAD OR theme:TERROR OR theme:ELECTIONS OR theme:POLITICAL_INSTABILITY) sourcelang:eng',
+  '(theme:GENERAL_GOVERNMENT OR theme:GENERAL_HEALTH OR theme:ENV_CLIMATECHANGE OR theme:EDUCATION OR theme:SCIENCE) sourcelang:eng',
+  '(theme:ECON_BANKRUPTCY OR theme:ECON_DEBT OR theme:ECON_REFORM OR theme:NATURAL_DISASTER) sourcelang:eng',
+  '(theme:HUMAN_RIGHTS OR theme:REFUGEES OR theme:DISEASE OR theme:FAMINE) sourcelang:eng',
+  '(domain:africanews.com OR domain:allafrica.com OR domain:thenationalnews.com OR domain:straitstimes.com OR domain:hindustantimes.com OR domain:dawn.com OR domain:dailystar.com.lb OR domain:theglobeandmail.com OR domain:smh.com.au) sourcelang:eng',
+  '(domain:japantimes.co.jp OR domain:koreaherald.com OR domain:chinadailyhk.com OR domain:khaleejtimes.com OR domain:manilatimes.net OR domain:bangkokpost.com OR domain:voanews.com OR domain:rferl.org) sourcelang:eng',
+];
+
+async function fetchGdelt() {
+  const seen = new Set(), merged = [];
+  for (const q of GDELT_QUERIES) {
+    try {
+      const url = `${GDELT_BASE}?query=${encodeURIComponent(q)}&mode=ArtList&format=json&maxrecords=250&timespan=1d&sort=datedesc`;
+      let data;
+      try {
+        // Try direct first (GDELT allows direct in some environments)
+        const r = await fetchWithTimeout(url, 8000);
+        if (r.ok) data = await r.json();
+      } catch {}
+      if (!data) {
+        const text = await fetchViaProxies(url, 10000);
+        data = JSON.parse(text);
+      }
+      for (const a of (data.articles || [])) {
+        const u = (a.url || '').trim();
+        if (!u || seen.has(u)) continue;
+        seen.add(u);
+        merged.push({
+          title: a.title || '',
+          url: u,
+          domain: a.domain || extractDomain(u),
+          sourcecountry: a.sourcecountry || '',
+          seendate: a.seendate || '',
+          _api: 'gdelt',
+        });
+      }
+    } catch(e) {
+      console.warn('GDELT query failed:', e.message);
+    }
+  }
+  console.log(`[GDELT] ${merged.length} articles`);
+  return merged;
+}
+
+// ─────────────────────────────────────────
+// API — GNews
+// ─────────────────────────────────────────
+async function fetchGnews() {
+  const BASE = 'https://gnews.io/api/v4';
+  const queries = [
+    `${BASE}/top-headlines?topic=world&lang=en&max=100&token=${GNEWS_KEY}`,
+    `${BASE}/top-headlines?topic=politics&lang=en&max=100&token=${GNEWS_KEY}`,
+    `${BASE}/top-headlines?topic=business&lang=en&max=100&token=${GNEWS_KEY}`,
+    `${BASE}/top-headlines?topic=health&lang=en&max=100&token=${GNEWS_KEY}`,
+    `${BASE}/top-headlines?topic=nation&lang=en&max=100&token=${GNEWS_KEY}`,
+    `${BASE}/top-headlines?topic=science&lang=en&max=100&token=${GNEWS_KEY}`,
+    `${BASE}/search?q=war+conflict+crisis+disaster&lang=en&max=100&sortby=publishedAt&token=${GNEWS_KEY}`,
+    `${BASE}/search?q=election+government+president+minister&lang=en&max=100&sortby=publishedAt&token=${GNEWS_KEY}`,
+    `${BASE}/search?q=peace+growth+development+innovation+award&lang=en&max=100&sortby=publishedAt&token=${GNEWS_KEY}`,
+    `${BASE}/search?q=earthquake+flood+hurricane+wildfire+climate&lang=en&max=100&sortby=publishedAt&token=${GNEWS_KEY}`,
+  ];
+  const articles = [];
+  const seen = new Set();
+  const results = await Promise.allSettled(queries.map(u =>
+    fetchWithTimeout(u, 10000).then(r => r.ok ? r.json() : null).catch(() => null)
+  ));
+  for (const r of results) {
+    if (r.status !== 'fulfilled' || !r.value) continue;
+    for (const a of (r.value.articles || [])) {
+      const u = (a.url || '').trim();
+      if (!u || seen.has(u)) continue;
+      seen.add(u);
+      articles.push({
+        title: a.title || a.description || '',
+        url: u,
+        domain: extractDomain(u),
+        sourcecountry: '',
+        seendate: a.publishedAt || '',
+        _api: 'gnews',
+      });
+    }
+  }
+  console.log(`[GNews] ${articles.length} articles`);
+  return articles;
+}
+
+// ─────────────────────────────────────────
+// API — NewsData.io
+// ─────────────────────────────────────────
+async function fetchNewsdata() {
+  const BASE = 'https://newsdata.io/api/1/news';
+  const queries = [
+    `${BASE}?apikey=${NEWSDATA_KEY}&language=en&size=50`,
+    `${BASE}?apikey=${NEWSDATA_KEY}&language=en&category=politics&size=50`,
+    `${BASE}?apikey=${NEWSDATA_KEY}&language=en&category=world&size=50`,
+    `${BASE}?apikey=${NEWSDATA_KEY}&language=en&category=top&size=50`,
+    `${BASE}?apikey=${NEWSDATA_KEY}&language=en&category=crime&size=50`,
+    `${BASE}?apikey=${NEWSDATA_KEY}&language=en&category=environment&size=50`,
+    `${BASE}?apikey=${NEWSDATA_KEY}&language=en&category=health&size=50`,
+    `${BASE}?apikey=${NEWSDATA_KEY}&language=en&category=science&size=50`,
+    `${BASE}?apikey=${NEWSDATA_KEY}&language=en&category=technology&size=50`,
+    `${BASE}?apikey=${NEWSDATA_KEY}&language=en&category=entertainment&size=50`,
+    `${BASE}?apikey=${NEWSDATA_KEY}&language=en&category=sports&size=50`,
+    `${BASE}?apikey=${NEWSDATA_KEY}&language=en&category=business&size=50`,
+  ];
+  const articles = [];
+  const seen = new Set();
+  const results = await Promise.allSettled(queries.map(u =>
+    fetchWithTimeout(u, 10000).then(r => r.ok ? r.json() : null).catch(() => null)
+  ));
+  for (const r of results) {
+    if (r.status !== 'fulfilled' || !r.value) continue;
+    for (const a of (r.value.results || [])) {
+      const u = (a.link || '').trim();
+      if (!u || seen.has(u)) continue;
+      seen.add(u);
+      // NewsData gives us country arrays — use the first one
+      const sc = (Array.isArray(a.country) && a.country[0]) || '';
+      articles.push({
+        title: a.title || '',
+        url: u,
+        domain: a.source_id || extractDomain(u),
+        sourcecountry: sc,
+        seendate: a.pubDate || '',
+        _api: 'newsdata',
+      });
+    }
+  }
+  console.log(`[NewsData] ${articles.length} articles`);
+  return articles;
+}
+
+// ─────────────────────────────────────────
+// API — NewsAPI (via proxy, CORS-blocked otherwise)
+// ─────────────────────────────────────────
+async function fetchNewsapi() {
+  const BASE = 'https://newsapi.org/v2';
+  const queries = [
+    `${BASE}/top-headlines?apiKey=${NEWSAPI_KEY}&language=en&pageSize=100&category=general`,
+    `${BASE}/top-headlines?apiKey=${NEWSAPI_KEY}&language=en&pageSize=100&category=politics`,
+    `${BASE}/top-headlines?apiKey=${NEWSAPI_KEY}&language=en&pageSize=100&category=business`,
+    `${BASE}/top-headlines?apiKey=${NEWSAPI_KEY}&language=en&pageSize=100&category=health`,
+    `${BASE}/top-headlines?apiKey=${NEWSAPI_KEY}&language=en&pageSize=100&category=science`,
+    `${BASE}/everything?apiKey=${NEWSAPI_KEY}&language=en&pageSize=100&q=war+conflict+crisis&sortBy=publishedAt`,
+    `${BASE}/everything?apiKey=${NEWSAPI_KEY}&language=en&pageSize=100&q=election+government&sortBy=publishedAt`,
+    `${BASE}/everything?apiKey=${NEWSAPI_KEY}&language=en&pageSize=100&q=disaster+earthquake+flood&sortBy=publishedAt`,
+    `${BASE}/everything?apiKey=${NEWSAPI_KEY}&language=en&pageSize=100&q=peace+development+award&sortBy=publishedAt`,
+    `${BASE}/everything?apiKey=${NEWSAPI_KEY}&language=en&pageSize=100&q=africa+asia+latin+america+europe&sortBy=publishedAt`,
+  ];
+  const articles = [];
+  const seen = new Set();
+  for (const rawUrl of queries) {
+    try {
+      const text = await fetchViaProxies(rawUrl, 10000);
+      let data;
+      try { data = JSON.parse(text); } catch { continue; }
+      for (const a of (data.articles || [])) {
+        const u = (a.url || '').trim();
+        if (!u || seen.has(u) || u.includes('removed') || u === 'https://removed.com') continue;
+        seen.add(u);
+        articles.push({
+          title: a.title || '',
+          url: u,
+          domain: extractDomain(u),
+          sourcecountry: '',
+          seendate: a.publishedAt || '',
+          _api: 'newsapi',
+        });
+      }
+    } catch(e) {
+      console.warn('[NewsAPI] query failed:', e.message);
+    }
+  }
+  console.log(`[NewsAPI] ${articles.length} articles`);
+  return articles;
+}
+
+// ─────────────────────────────────────────
+// COMBINED FETCH
+// ─────────────────────────────────────────
+async function fetchAllApis() {
+  setProgress(10);
+  $loaderText.textContent = 'Connecting to news APIs…';
+
+  const results = await Promise.allSettled([
+    fetchGdelt().catch(e => { console.warn('[GDELT] failed:', e.message); return []; }),
+    fetchGnews().catch(e => { console.warn('[GNews] failed:', e.message); return []; }),
+    fetchNewsdata().catch(e => { console.warn('[NewsData] failed:', e.message); return []; }),
+    fetchNewsapi().catch(e => { console.warn('[NewsAPI] failed:', e.message); return []; }),
+  ]);
+
+  setProgress(65);
+  const seen = new Set();
+  const merged = [];
+  for (const r of results) {
+    const batch = r.status === 'fulfilled' ? r.value : [];
+    for (const a of batch) {
+      const u = (a.url || '').trim();
+      if (!u || seen.has(u)) continue;
+      seen.add(u);
+      merged.push(a);
+    }
+  }
+  console.log(`Combined: ${merged.length} unique articles`);
+  return merged;  // may be empty — caller handles fallback
+}
+
+// ─────────────────────────────────────────
+// BUILD NEWS PAYLOAD
+// ─────────────────────────────────────────
+function buildNewsPayload(articles) {
+  const locationBuckets = {}, byCountry = {};
+
+  for (const art of articles) {
+    const title = (art.title || '').trim();
+    const url   = (art.url || '').trim();
+    if (!title || !url) continue;
+
+    const loc = geocodeArticle(title, art.sourcecountry || '', url);
+    if (!loc) continue;
+
+    const tone     = computeTone(title);
+    const cortisol = toneToCortisol(tone);
+    const key = `${(Math.round(loc.lat*2)/2).toFixed(1)},${(Math.round(loc.lon*2)/2).toFixed(1)}`;
+
+    if (!locationBuckets[key]) {
+      locationBuckets[key] = {
+        lat: loc.lat, lon: loc.lon, name: loc.place,
+        country: loc.iso, countryName: loc.country, articles: [],
+      };
+    }
+    locationBuckets[key].articles.push({
+      url, title, meta: art.domain || '', api: art._api || '',
+      tone: +tone.toFixed(3), cortisol: +cortisol.toFixed(3),
+    });
+
+    if (loc.iso) {
+      if (!byCountry[loc.iso]) byCountry[loc.iso] = { name: loc.country || loc.iso, tones: [], count: 0 };
+      byCountry[loc.iso].tones.push(tone);
+      byCountry[loc.iso].count++;
+    }
+  }
+
+  const locations = [];
+  for (const bucket of Object.values(locationBuckets)) {
+    if (!bucket.articles.length) continue;
+    const avgTone = bucket.articles.reduce((s, a) => s + a.tone, 0) / bucket.articles.length;
+    bucket.tone     = +avgTone.toFixed(3);
+    bucket.cortisol = +toneToCortisol(avgTone).toFixed(3);
+    locations.push(bucket);
+  }
+
+  const countries = {};
+  for (const [iso, v] of Object.entries(byCountry)) {
+    const avg = v.tones.length ? v.tones.reduce((s,t) => s+t, 0) / v.tones.length : 0;
+    countries[iso] = {
+      name: v.name, avgTone: +avg.toFixed(3),
+      cortisol: +toneToCortisol(avg).toFixed(3), count: v.count,
+    };
+  }
+
+  return { locations, countries, fetchedAt: Date.now()/1000, totalArticles: articles.length };
+}
+
+// ─────────────────────────────────────────
+// GLOBE
+// ─────────────────────────────────────────
+function initGlobe() {
+  const el = document.getElementById('globe');
+
+  // Procedural ocean texture
+  const oc = document.createElement('canvas');
+  oc.width = 512; oc.height = 256;
+  const octx = oc.getContext('2d');
+  const grad = octx.createLinearGradient(0, 0, 0, 256);
+  grad.addColorStop(0,   '#061630');
+  grad.addColorStop(0.3, '#0a2848');
+  grad.addColorStop(0.5, '#0d3560');
+  grad.addColorStop(0.7, '#0a2848');
+  grad.addColorStop(1,   '#061630');
+  octx.fillStyle = grad;
+  octx.fillRect(0, 0, 512, 256);
+  for (let i = 0; i < 6000; i++) {
+    octx.fillStyle = `rgba(${70+Math.random()*50}, ${130+Math.random()*50}, 200, ${0.012+Math.random()*0.022})`;
+    octx.fillRect(Math.random()*512, Math.random()*256, 1+Math.random()*2, 1);
+  }
+
+  globe = Globe()(el)
+    .globeImageUrl(oc.toDataURL())
+    .bumpImageUrl('https://unpkg.com/three-globe/example/img/earth-topology.png')
+    .backgroundImageUrl('https://unpkg.com/three-globe/example/img/night-sky.png')
+    .atmosphereColor('rgba(50, 140, 255, 0.6)')
+    .atmosphereAltitude(0.22)
+    .showGraticules(true);
+
+  setTimeout(() => {
+    if (globe.scene()) {
+      globe.scene().traverse(obj => {
+        if ((obj.isLine || obj.isLineSegments) && obj.material) {
+          obj.material.color.setHex(0x102040);
+          obj.material.opacity = 0.1;
+          obj.material.transparent = true;
+          obj.material.needsUpdate = true;
+        }
+      });
+    }
+  }, 800);
+
+  updateGlobeData();
+
+  globe.controls().autoRotate      = true;
+  globe.controls().autoRotateSpeed = 0.3;
+  el.addEventListener('mousedown', () => { globe.controls().autoRotate = false; });
+  el.addEventListener('touchstart', () => { globe.controls().autoRotate = false; }, { passive: true });
+
+  const resize = () => globe.width(el.clientWidth).height(el.clientHeight);
+  resize();
+  window.addEventListener('resize', resize);
+  globeInitialized = true;
+}
+
+function updateGlobeData() {
+  if (!globe) return;
+
+  if (countriesGeo) {
+    globe
+      .polygonsData(countriesGeo.features)
+      .polygonAltitude(d => {
+        const c = news.countries[isoOf(d)];
+        return c ? 0.013 : 0.006;
+      })
+      .polygonCapColor(d => {
+        const c = news.countries[isoOf(d)];
+        return c ? cortisolColor(c.cortisol, 0.82) : 'rgba(35, 60, 48, 0.45)';
+      })
+      .polygonSideColor(d => {
+        const c = news.countries[isoOf(d)];
+        return c ? cortisolColor(c.cortisol, 0.22) : 'rgba(25, 45, 36, 0.3)';
+      })
+      .polygonStrokeColor(() => 'rgba(100, 160, 255, 0.12)')
+      .polygonLabel(d => {
+        const iso = isoOf(d), c = news.countries[iso], name = nameOf(d);
+        if (!c) return `<div class="tt"><b>${escapeHtml(name)}</b><br><span style="color:var(--text-dim)">No recent news</span></div>`;
+        return `<div class="tt"><b>${escapeHtml(name)}</b><br>Cortisol: <b style="color:${cortisolColor(c.cortisol)}">${c.cortisol.toFixed(2)}</b><br>${c.count} article${c.count===1?'':'s'}</div>`;
+      });
+  }
+
+  globe
+    .pointsData(news.locations)
+    .pointLat('lat').pointLng('lon')
+    .pointAltitude(d => Math.min(0.12, 0.012 + d.articles.length * 0.005))
+    .pointRadius(d => 0.28 + Math.min(0.8, d.articles.length * 0.04))
+    .pointColor(d => cortisolColor(d.cortisol, 0.95))
+    .pointResolution(8)
+    .pointLabel(d => `<div class="tt"><b>${escapeHtml(d.name||d.countryName||'News')}</b>${d.countryName?`<span class="tt-sub">${escapeHtml(d.countryName)}</span>`:''}<br>${d.articles.length} article${d.articles.length===1?'':'s'} · cortisol <b style="color:${cortisolColor(d.cortisol)}">${d.cortisol.toFixed(2)}</b></div>`)
+    .onPointClick(showLocation)
+    .onPointHover(p => { document.getElementById('globe').style.cursor = p ? 'pointer' : 'default'; });
+}
+
+function showLocation(loc) {
+  globe.pointOfView({ lat: loc.lat, lng: loc.lon, altitude: 1.6 }, 1200);
+
+  const apiColors = { gdelt:'#4da8ff', gnews:'#a47cff', newsdata:'#2dd47a', newsapi:'#e8c840' };
+
+  const arts = loc.articles.slice(0, 20).map(a => `
+    <li class="article">
+      <a class="article-title" href="${escapeHtml(a.url)}" target="_blank" rel="noopener">${escapeHtml(a.title)}</a>
+      <div class="article-meta">
+        <span class="badge" style="background:${cortisolColor(a.cortisol, 0.65)}">cortisol ${a.cortisol.toFixed(2)}</span>
+        ${a.meta ? `<span class="src">${escapeHtml(a.meta)}</span>` : ''}
+        ${a.api ? `<span class="api-tag" style="background:${apiColors[a.api]||'#666'}22;color:${apiColors[a.api]||'#aaa'}">${a.api.toUpperCase()}</span>` : ''}
+      </div>
+    </li>`).join('');
+
+  $articlePanel.innerHTML = `
+    <h2>📍 Selected Location</h2>
+    <div class="loc-name">${escapeHtml(loc.name || 'News location')}</div>
+    <div class="loc-summary">
+      <span class="badge big" style="background:${cortisolColor(loc.cortisol, 0.7)}">cortisol ${loc.cortisol.toFixed(2)}</span>
+      ${loc.countryName ? `<span class="country">${escapeHtml(loc.countryName)}${loc.country?` (${escapeHtml(loc.country)})`:''}</span>` : ''}
+      <span class="count">${loc.articles.length} article${loc.articles.length===1?'':'s'}</span>
+    </div>
+    <ul class="articles">${arts}</ul>`;
+}
+
+// ─────────────────────────────────────────
+// CHART
+// ─────────────────────────────────────────
+function initChart() {
+  const entries = Object.entries(news.countries || {})
+    .filter(([,v]) => v && v.count >= 1)
+    .sort((a, b) => b[1].cortisol - a[1].cortisol);
+
+  const top = entries.slice(0, 20);
+  const ctx = document.getElementById('chart').getContext('2d');
+  if (chart) chart.destroy();
+
+  chart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: top.map(([iso, v]) => v.name || iso),
+      datasets: [{
+        label: 'Cortisol',
+        data: top.map(([,v]) => v.cortisol),
+        backgroundColor: top.map(([,v]) => cortisolColor(v.cortisol, 0.8)),
+        borderColor: top.map(([,v]) => cortisolColor(v.cortisol, 1)),
+        borderWidth: 1, borderRadius: 3,
+      }],
+    },
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      animation: { duration: 500 },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          titleFont: { family: "'Space Mono', monospace", size: 10 },
+          bodyFont:  { family: "'Outfit', sans-serif", size: 11 },
+          callbacks: {
+            label: ctx => {
+              const [, v] = top[ctx.dataIndex];
+              return [`Cortisol: ${v.cortisol.toFixed(2)}`, `Tone: ${v.avgTone.toFixed(2)}`, `${v.count} articles`];
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          min: 0, max: 1,
+          ticks: { color: '#4a5a72', font: { family:"'Space Mono',monospace", size:9 }, stepSize: 0.25 },
+          grid: { color: 'rgba(255,255,255,0.035)' },
+          title: { display: true, text: 'CORTISOL  0 CALM → 1 STRESSED', color: '#4a5a72', font: { family:"'Space Mono',monospace", size: 8 } },
+        },
+        y: {
+          ticks: { color: '#7a8aa4', font: { family:"'Outfit',sans-serif", size: 10 } },
+          grid: { display: false },
+        },
+      },
+    },
+  });
+
+  if (entries.length === 0) { $chartSummary.textContent = 'No data — try refreshing.'; return; }
+  const totalArt = entries.reduce((s,[,v]) => s + v.count, 0);
+  const weighted = entries.reduce((s,[,v]) => s + v.cortisol * v.count, 0) / Math.max(1, totalArt);
+  $chartSummary.innerHTML = `WORLD: <b style="color:${cortisolColor(weighted)}">${weighted.toFixed(2)}</b> · ${entries.length} COUNTRIES · ${fmtNum(totalArt)} ARTICLES`;
+}
+
+// ─────────────────────────────────────────
+// REFRESH
+// ─────────────────────────────────────────
+async function refresh() {
+  $refresh.disabled = true;
+  $status.textContent = 'FETCHING NEW ARTICLES…';
+  try {
+    const fresh = await fetchAllApis();
+    const { merged, added, firstFetch } = mergeIntoStore(fresh);
+    sessionNewCount += added;
+    news = buildNewsPayload(merged);
+    if (globeInitialized) updateGlobeData();
+    initChart();
+    const countryCount = Object.keys(news.countries).length;
+    updateArchivePanel(merged.length, sessionNewCount, countryCount, firstFetch);
+    $status.textContent = `${news.locations.length} LOCATIONS · ${countryCount} COUNTRIES · +${added} NEW`;
+  } catch(e) {
+    $status.textContent = `REFRESH FAILED: ${e.message}`;
+  } finally {
+    $refresh.disabled = false;
+  }
+}
+
+// ─────────────────────────────────────────
+// HOMEPAGE CANVAS ANIMATION
+// ─────────────────────────────────────────
+function initHpCanvas() {
+  const canvas = document.getElementById('hp-canvas');
+  const ctx = canvas.getContext('2d');
+  let W, H, particles;
+
+  function resize() {
+    W = canvas.width  = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+  }
+
+  function hslToRgba(h, s, l, a) {
+    h /= 360; s /= 100; l /= 100;
+    let r, g, b;
+    if (s === 0) { r = g = b = l; }
+    else {
+      const hue2rgb = (p, q, t) => {
+        if (t < 0) t += 1; if (t > 1) t -= 1;
+        if (t < 1/6) return p + (q-p)*6*t;
+        if (t < 1/2) return q;
+        if (t < 2/3) return p + (q-p)*(2/3-t)*6;
+        return p;
+      };
+      const q = l < 0.5 ? l*(1+s) : l+s-l*s, p = 2*l-q;
+      r = hue2rgb(p,q,h+1/3); g = hue2rgb(p,q,h); b = hue2rgb(p,q,h-1/3);
+    }
+    return `rgba(${Math.round(r*255)},${Math.round(g*255)},${Math.round(b*255)},${a})`;
+  }
+
+  function mkParticle() {
+    const cortisol = Math.random();
+    const hue = (1-cortisol)*120;
+    const size = 1.5 + Math.random()*3.5;
+    return {
+      x: Math.random()*W, y: Math.random()*H,
+      vx: (Math.random()-0.5)*0.3, vy: (Math.random()-0.5)*0.3,
+      size, cortisol, hue,
+      alpha: 0.04 + Math.random()*0.25,
+      pulse: Math.random()*Math.PI*2,
+      pulseSpeed: 0.008 + Math.random()*0.015,
+    };
+  }
+
+  function initParticles() {
+    particles = Array.from({ length: 180 }, mkParticle);
+  }
+
+  let raf;
+  function animate() {
+    raf = requestAnimationFrame(animate);
+    ctx.fillStyle = 'rgba(4,6,14,0.15)';
+    ctx.fillRect(0, 0, W, H);
+
+    for (const p of particles) {
+      p.x += p.vx; p.y += p.vy;
+      p.pulse += p.pulseSpeed;
+      if (p.x < -50) p.x = W+50;
+      if (p.x > W+50) p.x = -50;
+      if (p.y < -50) p.y = H+50;
+      if (p.y > H+50) p.y = -50;
+
+      const a = p.alpha * (0.7 + 0.3*Math.sin(p.pulse));
+      const r = p.size  * (0.9 + 0.1*Math.sin(p.pulse*1.3));
+      const color = hslToRgba(p.hue, 60, 55, a);
+      const grd = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r*6);
+      grd.addColorStop(0, color);
+      grd.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = grd;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, r*6, 0, Math.PI*2);
+      ctx.fill();
+    }
+  }
+
+  resize();
+  initParticles();
+  animate();
+  window.addEventListener('resize', () => { resize(); initParticles(); });
+
+  return () => cancelAnimationFrame(raf);
+}
+
+// ─────────────────────────────────────────
+// LOAD ALL (main init)
+// ─────────────────────────────────────────
+async function loadAll() {
+  $loaderText.textContent = 'Loading country boundaries…';
+  $status.textContent = 'LOADING GEO DATA…';
+  setProgress(0);
+
+  // ── Geo data: try multiple sources, never hard-fail ──
+  let geoOk = false;
+  try {
+    $loaderText.textContent = 'Fetching country shapes…';
+    const [countriesResp, citiesResp] = await Promise.all([
+      fetchJsonAny(COUNTRIES_URL),
+      fetchJsonAny(CITIES_URL),
+    ]);
+    countriesGeo = countriesResp;
+    citiesGeo    = citiesResp;
+    geoOk = true;
+  } catch(e) {
+    console.error('Geo data failed:', e);
+    // Try alternative CDN sources
+    try {
+      $loaderText.textContent = 'Trying alternate geo source…';
+      const alt = 'https://cdn.jsdelivr.net/npm/world-atlas@2';
+      // Attempt to use unpkg alternative for the same files
+      const [countriesResp, citiesResp] = await Promise.all([
+        fetchJsonAny(`https://unpkg.com/natural-earth-data@1.1.0/ne_110m_admin_0_countries.geojson`),
+        fetchJsonAny(`https://unpkg.com/natural-earth-data@1.1.0/ne_50m_populated_places_simple.geojson`),
+      ]);
+      countriesGeo = countriesResp;
+      citiesGeo    = citiesResp;
+      geoOk = true;
+    } catch(e2) {
+      console.error('Alternate geo also failed:', e2);
+      $status.textContent = 'GEO DATA UNAVAILABLE — USING DEMO MODE';
+      $loaderText.textContent = 'Geo load failed — using demo data…';
+    }
+  }
+  setProgress(15);
+
+  if (geoOk) {
+    $loaderText.textContent = 'Building geo indexes…';
+    buildCitiesIndex();
+    buildCountryCentroids();
+    buildCountryTopCities();
+  }
+  setProgress(20);
+
+  // ── Stored articles ──
+  const { articles: stored, firstFetch } = loadStore();
+  $loaderText.textContent = `Loaded ${fmtNum(stored.length)} archived articles…`;
+  setProgress(25);
+
+  // ── Live news from all APIs ──
+  $loaderText.textContent = 'Fetching live news from 4 APIs…';
+  let fresh = [];
+  try {
+    fresh = await fetchAllApis();
+  } catch(e) {
+    console.warn('fetchAllApis threw:', e.message);
+  }
+  setProgress(70);
+
+  // If absolutely nothing came back, use demo data
+  const combined = [...stored, ...fresh];
+  const allArticles = combined.length > 0 ? combined : DEMO_ARTICLES;
+  if (combined.length === 0) {
+    $status.textContent = 'ALL APIS UNAVAILABLE — SHOWING DEMO DATA';
+  }
+
+  $loaderText.textContent = 'Merging into archive…';
+  const { merged, added, firstFetch: fp } = mergeIntoStore(fresh.length > 0 ? fresh : DEMO_ARTICLES);
+  sessionNewCount = added;
+  setProgress(80);
+
+  $loaderText.textContent = 'Analyzing sentiment…';
+  news = geoOk ? buildNewsPayload(merged) : buildNewsPayload(allArticles);
+  setProgress(92);
+
+  const nLoc     = news.locations.length;
+  const nCountry = Object.keys(news.countries).length;
+  updateArchivePanel(merged.length, sessionNewCount, nCountry, fp || firstFetch);
+  $status.textContent = `${nLoc} LOCATIONS · ${nCountry} COUNTRIES · ${fmtNum(merged.length)} TOTAL ARTICLES`;
+  setProgress(100);
+}
+
+// ─────────────────────────────────────────
+// DEMO FALLBACK
+// ─────────────────────────────────────────
+const DEMO_ARTICLES = [
+  { title:'Ukraine conflict: frontline updates from Kharkiv', url:'https://bbc.com/ukraine1', domain:'bbc.com', sourcecountry:'ukraine', _api:'demo' },
+  { title:'Gaza ceasefire talks resume in Cairo amid ongoing conflict', url:'https://aljazeera.com/gaza1', domain:'aljazeera.com', sourcecountry:'egypt', _api:'demo' },
+  { title:'Russia launches missile strikes on Kyiv overnight', url:'https://reuters.com/kyiv1', domain:'reuters.com', sourcecountry:'ukraine', _api:'demo' },
+  { title:'Israel military operations continue in northern Gaza', url:'https://apnews.com/israel1', domain:'apnews.com', sourcecountry:'israel', _api:'demo' },
+  { title:'Sudan civil war: thousands flee to Chad as fighting intensifies', url:'https://guardian.com/sudan1', domain:'theguardian.com', sourcecountry:'sudan', _api:'demo' },
+  { title:'Nobel Peace Prize awarded to democracy activists in Myanmar', url:'https://bbc.com/myanmar1', domain:'bbc.com', sourcecountry:'myanmar', _api:'demo' },
+  { title:'India launches record-breaking satellite into orbit', url:'https://reuters.com/india1', domain:'reuters.com', sourcecountry:'india', _api:'demo' },
+  { title:'Brazil Amazon deforestation falls to ten-year low', url:'https://guardian.com/brazil1', domain:'theguardian.com', sourcecountry:'brazil', _api:'demo' },
+  { title:'North Korea fires ballistic missile into Sea of Japan', url:'https://apnews.com/nkorea1', domain:'apnews.com', sourcecountry:'north korea', _api:'demo' },
+  { title:'China economy: manufacturing growth beats expectations', url:'https://reuters.com/china1', domain:'reuters.com', sourcecountry:'china', _api:'demo' },
+  { title:'Japan earthquake: rescue teams search for survivors in Tokyo suburbs', url:'https://bbc.com/japan1', domain:'bbc.com', sourcecountry:'japan', _api:'demo' },
+  { title:'Nigeria presidential election marred by violence and fraud claims', url:'https://guardian.com/nigeria1', domain:'theguardian.com', sourcecountry:'nigeria', _api:'demo' },
+  { title:'Kenya drought emergency declared as crops fail across eastern regions', url:'https://apnews.com/kenya1', domain:'apnews.com', sourcecountry:'kenya', _api:'demo' },
+  { title:'Ethiopia peace deal signed bringing end to Tigray conflict', url:'https://bbc.com/ethiopia1', domain:'bbc.com', sourcecountry:'ethiopia', _api:'demo' },
+  { title:'Germany announces record investment in green hydrogen energy', url:'https://dw.com/germany1', domain:'dw.com', sourcecountry:'germany', _api:'demo' },
+  { title:'France protests against pension reform turn violent in Paris', url:'https://france24.com/france1', domain:'france24.com', sourcecountry:'france', _api:'demo' },
+  { title:'Spain wildfires rage across Valencia region, thousands evacuated', url:'https://reuters.com/spain1', domain:'reuters.com', sourcecountry:'spain', _api:'demo' },
+  { title:'Italy floods: Venice underwater after record rainfall', url:'https://apnews.com/italy1', domain:'apnews.com', sourcecountry:'italy', _api:'demo' },
+  { title:'Mexico cartel violence: army deploys to border cities', url:'https://nytimes.com/mexico1', domain:'nytimes.com', sourcecountry:'mexico', _api:'demo' },
+  { title:'Argentina economic crisis: IMF agrees new bailout terms', url:'https://reuters.com/argentina1', domain:'reuters.com', sourcecountry:'argentina', _api:'demo' },
+  { title:'Colombia celebrates record low murder rate in Bogotá', url:'https://apnews.com/colombia1', domain:'apnews.com', sourcecountry:'colombia', _api:'demo' },
+  { title:'USA Congress passes landmark AI regulation bill', url:'https://nytimes.com/usa1', domain:'nytimes.com', sourcecountry:'america', _api:'demo' },
+  { title:'Canada wildfires threaten Alberta oil sands operations', url:'https://reuters.com/canada1', domain:'reuters.com', sourcecountry:'canada', _api:'demo' },
+  { title:'Australia floods: Queensland declares disaster as rivers burst banks', url:'https://bbc.com/australia1', domain:'bbc.com', sourcecountry:'australia', _api:'demo' },
+  { title:'Iran nuclear talks collapse after latest IAEA inspection', url:'https://apnews.com/iran1', domain:'apnews.com', sourcecountry:'iran', _api:'demo' },
+  { title:'Pakistan floods: millions displaced as monsoon season worsens', url:'https://aljazeera.com/pakistan1', domain:'aljazeera.com', sourcecountry:'pakistan', _api:'demo' },
+  { title:'Indonesia announces new capital city Nusantara officially open', url:'https://bbc.com/indonesia1', domain:'bbc.com', sourcecountry:'indonesia', _api:'demo' },
+  { title:'Philippines typhoon kills dozens, hundreds missing in Mindanao', url:'https://apnews.com/philippines1', domain:'apnews.com', sourcecountry:'philippines', _api:'demo' },
+  { title:'Vietnam achieves record GDP growth driven by semiconductor exports', url:'https://reuters.com/vietnam1', domain:'reuters.com', sourcecountry:'vietnam', _api:'demo' },
+  { title:'Turkey earthquake kills hundreds in eastern provinces', url:'https://bbc.com/turkey1', domain:'bbc.com', sourcecountry:'turkey', _api:'demo' },
+  { title:'Egypt hosts peace summit for Horn of Africa nations', url:'https://aljazeera.com/egypt1', domain:'aljazeera.com', sourcecountry:'egypt', _api:'demo' },
+  { title:'South Africa power cuts ease as new solar plants come online', url:'https://reuters.com/za1', domain:'reuters.com', sourcecountry:'south africa', _api:'demo' },
+  { title:'Poland wins landmark climate compensation case at European court', url:'https://dw.com/poland1', domain:'dw.com', sourcecountry:'germany', _api:'demo' },
+  { title:'Sweden NATO integration complete with joint Arctic exercises', url:'https://dw.com/sweden1', domain:'dw.com', sourcecountry:'germany', _api:'demo' },
+  { title:'Saudi Arabia mega-city NEOM construction accelerates', url:'https://reuters.com/saudi1', domain:'reuters.com', sourcecountry:'saudi', _api:'demo' },
+  { title:'Bangladesh floods displace millions ahead of election', url:'https://aljazeera.com/bangladesh1', domain:'aljazeera.com', sourcecountry:'bangladesh', _api:'demo' },
+  { title:'Morocco earthquake recovery efforts praised by UN', url:'https://apnews.com/morocco1', domain:'apnews.com', sourcecountry:'morocco', _api:'demo' },
+  { title:'Thailand election results contested by opposition parties', url:'https://guardian.com/thailand1', domain:'theguardian.com', sourcecountry:'thailand', _api:'demo' },
+  { title:'Greece wildfires force mass evacuations near Athens', url:'https://bbc.com/greece1', domain:'bbc.com', sourcecountry:'greece', _api:'demo' },
+  { title:'Ghana election: incumbent wins landslide victory', url:'https://bbc.com/ghana1', domain:'bbc.com', sourcecountry:'ghana', _api:'demo' },
+  { title:'Ukraine celebrates liberation of key eastern city', url:'https://reuters.com/ukraine2', domain:'reuters.com', sourcecountry:'ukraine', _api:'demo' },
+  { title:'Singapore announces bold green economy plan', url:'https://straitstimes.com/sg1', domain:'straitstimes.com', sourcecountry:'singapore', _api:'demo' },
+  { title:'New Zealand PM unveils historic indigenous rights accord', url:'https://bbc.com/nz1', domain:'bbc.com', sourcecountry:'new zealand', _api:'demo' },
+  { title:'South Korea K-pop industry wins UNESCO cultural recognition', url:'https://reuters.com/sk1', domain:'reuters.com', sourcecountry:'south korea', _api:'demo' },
+  { title:'Taiwan holds landmark trade agreement signing with US', url:'https://nytimes.com/taiwan1', domain:'nytimes.com', sourcecountry:'taiwan', _api:'demo' },
+];
+
+// ─────────────────────────────────────────
+// HOMEPAGE LOGIC
+// ─────────────────────────────────────────
+let stopHpCanvas;
+
+function initHomepage() {
+  stopHpCanvas = initHpCanvas();
+
+  // Pre-load the stored stats for display
+  const { articles: stored, firstFetch } = loadStore();
+  const hpTotal    = document.getElementById('hp-total');
+  const hpSince    = document.getElementById('hp-since');
+  if (hpTotal) hpTotal.textContent = stored.length > 0 ? fmtNum(stored.length) : '—';
+  if (hpSince) hpSince.textContent = fmtDate(firstFetch);
+
+  document.getElementById('hp-enter').addEventListener('click', () => {
+    const hp  = document.getElementById('homepage');
+    const app = document.getElementById('app');
+    hp.classList.add('exiting');
+    app.classList.remove('app-hidden');
+    setTimeout(() => {
+      app.classList.add('visible');
+      if (stopHpCanvas) stopHpCanvas();
+    }, 200);
+    setTimeout(() => { hp.style.display = 'none'; }, 1000);
+  });
+
+  document.getElementById('home-btn').addEventListener('click', () => {
+    const hp  = document.getElementById('homepage');
+    const app = document.getElementById('app');
+    hp.style.display = '';
+    hp.classList.remove('exiting');
+    app.classList.remove('visible');
+    setTimeout(() => { app.classList.add('app-hidden'); }, 700);
+    stopHpCanvas = initHpCanvas();
+    // Refresh homepage stats
+    const { articles, firstFetch: fp } = loadStore();
+    const hpT = document.getElementById('hp-total');
+    const hpS = document.getElementById('hp-since');
+    const hpC = document.getElementById('hp-countries');
+    if (hpT) hpT.textContent = fmtNum(articles.length);
+    if (hpS) hpS.textContent = fmtDate(fp);
+    if (hpC && news) hpC.textContent = Object.keys(news.countries).length;
+  });
+}
+
+// ─────────────────────────────────────────
+// MAIN ENTRY
+// ─────────────────────────────────────────
+$refresh.addEventListener('click', refresh);
+
+initHomepage();
+
+// Kick off data loading in background
+(async function main() {
+  try {
+    await ensureLibs();
+  } catch(e) {
+    $status.textContent = 'FAILED TO LOAD GLOBE LIBRARY — CHECK CONNECTION';
+    $loaderText.textContent = 'Could not load required scripts. Please reload.';
+    return;
+  }
+  try {
+    await loadAll();
+  } catch(e) {
+    // Even if loadAll throws for some reason, try to show demo data
+    console.error('loadAll failed:', e);
+    $status.textContent = `NETWORK ERROR — DEMO MODE`;
+    $loaderText.textContent = 'Using built-in demo dataset…';
+    if (!countriesGeo || !citiesGeo) {
+      // Can't render globe without geo data — show a user-friendly message
+      $loaderText.textContent = 'Cannot load map data. Check your internet connection and reload.';
+      $status.textContent = 'OFFLINE — RELOAD TO RETRY';
+      return;
+    }
+    const { merged, added, firstFetch } = mergeIntoStore(DEMO_ARTICLES);
+    sessionNewCount = added;
+    news = buildNewsPayload(merged);
+    updateArchivePanel(merged.length, sessionNewCount, Object.keys(news.countries).length, firstFetch);
+  }
+  try {
+    initGlobe();
+    initChart();
+  } catch(e) {
+    console.error('Globe/chart init failed:', e);
+    $status.textContent = `RENDER ERROR: ${e.message}`;
+  }
+  $overlay.classList.add('hidden');
+})();
+</script>
+</body>
+</html>
