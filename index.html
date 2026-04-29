@@ -1,0 +1,1077 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>World Cortisol Index — Global News Stress Map</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+:root {
+  --bg: #04060e;
+  --bg-2: #0a1020;
+  --panel: rgba(8, 16, 36, 0.85);
+  --panel-border: rgba(100, 160, 240, 0.12);
+  --text: #dce4f2;
+  --text-dim: #7a8aa4;
+  --accent: #4da8ff;
+  --accent-2: #a47cff;
+  --good: #2dd47a;
+  --bad: #f0503c;
+  --font-display: 'Space Mono', monospace;
+  --font-body: 'Outfit', -apple-system, sans-serif;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  overflow: hidden;
+}
+
+#app {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  height: 100vh;
+}
+
+/* ── Topbar ── */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 24px;
+  background: linear-gradient(180deg, rgba(4, 6, 14, 0.97) 0%, rgba(4, 6, 14, 0.6) 100%);
+  border-bottom: 1px solid var(--panel-border);
+  backdrop-filter: blur(12px);
+  z-index: 10;
+}
+
+.brand { display: flex; gap: 14px; align-items: center; }
+
+.brand-icon {
+  width: 36px; height: 36px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--good), var(--bad));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px;
+  box-shadow: 0 0 20px rgba(77, 168, 255, 0.25);
+}
+
+.brand h1 {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+.brand .tagline {
+  font-size: 11px;
+  color: var(--text-dim);
+  font-weight: 300;
+  margin-top: 1px;
+  letter-spacing: 0.3px;
+}
+
+.controls { display: flex; align-items: center; gap: 14px; }
+
+.status {
+  font-family: var(--font-display);
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+#refresh {
+  font-family: var(--font-display);
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid rgba(77, 168, 255, 0.3);
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+#refresh:hover:not(:disabled) { background: rgba(77, 168, 255, 0.1); border-color: var(--accent); }
+#refresh:disabled { opacity: 0.4; cursor: wait; }
+
+/* ── Layout ── */
+main {
+  display: grid;
+  grid-template-columns: 1fr 370px;
+  min-height: 0;
+}
+
+@media (max-width: 900px) {
+  main { grid-template-columns: 1fr; grid-template-rows: 1fr auto; }
+  #sidebar { max-height: 50vh; }
+}
+
+/* ── Globe ── */
+#globe-wrap {
+  position: relative;
+  min-height: 0;
+  background: radial-gradient(ellipse at 50% 55%, rgba(10, 40, 90, 0.3) 0%, transparent 65%);
+}
+
+#globe { width: 100%; height: 100%; }
+
+#globe-legend {
+  position: absolute;
+  left: 18px;
+  bottom: 16px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 8px 14px;
+  backdrop-filter: blur(10px);
+  font-family: var(--font-display);
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.lg-row { display: flex; align-items: center; gap: 6px; }
+.lg-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.lg-bar {
+  flex: 1; height: 6px; width: 100px; border-radius: 3px;
+  background: linear-gradient(90deg, var(--good) 0%, #e8c840 50%, var(--bad) 100%);
+}
+.lg-cap { margin-top: 4px; font-size: 9px; text-align: center; }
+
+/* ── Loading overlay ── */
+#loading-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  z-index: 20;
+  transition: opacity 0.6s;
+}
+#loading-overlay.hidden { opacity: 0; pointer-events: none; }
+
+.loader-ring {
+  width: 48px; height: 48px;
+  border: 3px solid rgba(77, 168, 255, 0.15);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.loader-text {
+  font-family: var(--font-display);
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 16px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+/* ── Sidebar ── */
+#sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  overflow-y: auto;
+  border-left: 1px solid var(--panel-border);
+  background: linear-gradient(180deg, rgba(4, 6, 14, 0.5), rgba(4, 6, 14, 0.85));
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  backdrop-filter: blur(10px);
+}
+
+.panel h2 {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+}
+
+.hint { font-size: 12px; color: var(--text-dim); font-weight: 300; }
+
+/* Article panel */
+.loc-summary {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  margin: 8px 0 12px; font-size: 12px;
+}
+.loc-name { font-family: var(--font-display); font-size: 14px; font-weight: 700; color: #fff; }
+.country { color: var(--text-dim); font-size: 12px; }
+.count { color: var(--text-dim); font-size: 11px; font-family: var(--font-display); }
+
+.badge {
+  display: inline-block; padding: 3px 8px; border-radius: 4px;
+  font-family: var(--font-display); font-size: 10px; font-weight: 700;
+  color: #000; letter-spacing: 0.5px; white-space: nowrap;
+}
+.badge.big { font-size: 11px; padding: 4px 10px; }
+
+.articles { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+
+.article {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 6px;
+  padding: 10px 12px;
+  transition: all 0.15s;
+}
+.article:hover { border-color: rgba(77, 168, 255, 0.3); background: rgba(77, 168, 255, 0.04); }
+
+.article-title {
+  display: block; color: var(--text); text-decoration: none;
+  font-size: 13px; font-weight: 400; line-height: 1.4;
+}
+.article-title:hover { color: var(--accent); }
+
+.article-meta {
+  margin-top: 5px; display: flex; flex-wrap: wrap; align-items: center;
+  gap: 8px; font-size: 11px; color: var(--text-dim);
+}
+.article-meta .src { font-style: italic; color: var(--text-dim); }
+
+/* Chart */
+#chart-wrap { position: relative; height: 340px; }
+.chart-summary {
+  margin-top: 8px; font-size: 12px; color: var(--text-dim);
+  font-family: var(--font-display); font-size: 10px; letter-spacing: 0.3px;
+}
+
+/* Tooltips */
+.tt {
+  background: rgba(4, 6, 14, 0.94);
+  border: 1px solid rgba(100, 160, 240, 0.2);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--text);
+  font-family: var(--font-body);
+  pointer-events: none;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+}
+.tt b { color: #fff; }
+.tt-sub { color: var(--text-dim); margin-left: 4px; font-size: 11px; }
+
+/* Scrollbar */
+#sidebar::-webkit-scrollbar { width: 6px; }
+#sidebar::-webkit-scrollbar-track { background: transparent; }
+#sidebar::-webkit-scrollbar-thumb { background: rgba(100, 160, 240, 0.15); border-radius: 3px; }
+#sidebar::-webkit-scrollbar-thumb:hover { background: rgba(100, 160, 240, 0.3); }
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-icon">🧠</div>
+      <div>
+        <h1>World Cortisol Index</h1>
+        <p class="tagline">Live global news stress, mapped in 3D</p>
+      </div>
+    </div>
+    <div class="controls">
+      <span id="status" class="status">INITIALIZING…</span>
+      <button id="refresh" type="button">↻ REFRESH</button>
+    </div>
+  </header>
+
+  <main>
+    <div id="globe-wrap">
+      <div id="loading-overlay">
+        <div class="loader-ring"></div>
+        <div class="loader-text" id="loader-text">Loading datasets…</div>
+      </div>
+      <div id="globe"></div>
+      <div id="globe-legend">
+        <div class="lg-row">
+          <span class="lg-dot" style="background:var(--good)"></span>
+          <span>calm</span>
+          <span class="lg-bar"></span>
+          <span>stressed</span>
+          <span class="lg-dot" style="background:var(--bad)"></span>
+        </div>
+        <div class="lg-cap">cortisol · 0 → 1</div>
+      </div>
+    </div>
+
+    <aside id="sidebar">
+      <section id="article-panel" class="panel">
+        <h2>📍 Selected Location</h2>
+        <p class="hint">Click a marker on the globe to see its news articles.</p>
+      </section>
+      <section id="chart-panel" class="panel">
+        <h2>📊 Cortisol Index — Today</h2>
+        <p class="hint">Top countries by news stress in the last 24 hours.</p>
+        <div id="chart-wrap"><canvas id="chart"></canvas></div>
+        <div id="chart-summary" class="chart-summary"></div>
+      </section>
+    </aside>
+  </main>
+</div>
+
+<script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+<script src="https://unpkg.com/globe.gl@2.32.0/dist/globe.gl.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+/* ====================================================================
+   World Cortisol Index — Pure Frontend
+   All data fetching, geocoding, and sentiment runs in the browser.
+   No backend needed. Host as static files anywhere.
+   ==================================================================== */
+
+const NATURAL_EARTH = 'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson';
+const COUNTRIES_URL = `${NATURAL_EARTH}/ne_110m_admin_0_countries.geojson`;
+const CITIES_URL    = `${NATURAL_EARTH}/ne_50m_populated_places_simple.geojson`;
+
+const GDELT_BASE = 'https://api.gdeltproject.org/api/v2/doc/doc';
+const GDELT_QUERIES = [
+  'sourcelang:eng',
+  '(domain:bbc.com OR domain:reuters.com OR domain:apnews.com OR domain:cnn.com OR domain:aljazeera.com OR domain:theguardian.com OR domain:nytimes.com OR domain:dw.com OR domain:france24.com)',
+  '(theme:KILL OR theme:ARMEDCONFLICT OR theme:PROTEST OR theme:CRISISLEX_T03_DEAD OR theme:TERROR) sourcelang:eng',
+  '(theme:GENERAL_GOVERNMENT OR theme:GENERAL_HEALTH OR theme:ENV_CLIMATECHANGE OR theme:EDUCATION) sourcelang:eng',
+];
+const GDELT_PER_QUERY = 250;
+
+// ── Sentiment lexicon ──
+const NEGATIVE_WORDS = new Set(`
+war wars killed kills death deaths dead dies died dying attack attacks attacked
+attacker bomb bombs bombed bombing crisis crashes crashed crash riot riots
+protest protests protesting arrest arrests arrested controversy conflict
+conflicts unrest terror terrorism disaster disasters shooting shootings
+tragedy tragic fraud scandal scandals recession collapse collapsed massacre
+massacres suicide murder murders murdered assault assaulted victim victims
+injured injuries casualties casualty threat threats threaten threatened
+warn warns warning panic crackdown condemn condemns condemned sanction
+sanctions impeach impeached indict indicted jailed convict convicted crime
+criminal crimes rob robbed robbery theft hate hatred tension tensions clash
+clashes militant militants terrorist terrorists rebel rebels insurgent
+insurgents outrage outraged plunge plunged plunges slump slumps plummet
+plummeted plummets tumble tumbles default defaults bankrupt bankruptcy
+layoff layoffs sued lawsuit probe probes dictator suspend suspended ban banned
+quit quits resign resigned resigns sacked expel expelled flee fled famine
+outbreak outbreaks epidemic pandemic rape raped abuse abused hostage hostages
+genocide hostile illegal lethal deadly wounded wound flood floods
+floodwaters earthquake quake hurricane typhoon wildfire wildfires drought
+drone strikes strike bombing missile missiles invade invaded invasion
+seized siege blockade evacuate evacuated evacuation stab stabbed stabbing
+hijack hijacked hijacking poison poisoned poisoning shot shoot shooter
+gunman gunmen militia militias raid raided fighting fight fights deny
+denies denied denial protester protesters loot
+looted looters looting smuggle smuggled smuggling traffick trafficking
+trafficked trafficker abusive corrupt corruption blackmail extort
+extortion harass harassment harassed
+`.trim().split(/\s+/));
+
+const POSITIVE_WORDS = new Set(`
+win wins won winner winners victory victories peace peaceful agreement
+agreements breakthrough treaty treaties donation donations donate donated
+raised raise raises award awarded awards recover recovered recovers recovery
+save saves saved saving rescue rescues rescued rescuing celebrate celebrated
+celebrates celebration prosperity prosperous education educated educate
+health healthy healed healing vaccine vaccines cure cures hero heroes heroic
+progress milestone milestones achieve achieved achievement achievements
+accomplish accomplished accomplishment success successes successful growth
+grow grows grew growing thrive thrived thrives thriving reform reforms
+reformed approve approved approves approval endorse endorsed endorses
+support supports supported supporter partnership partnerships partner
+reconcile reconciled reunite reunited liberate liberated freedom liberty
+justice fair fairness equality dignity honor honored honors honoring respect
+respected kindness kind generous generosity charity charities volunteer
+volunteers medal medals gold silver bronze champion champions championship
+remarkable exceptional excellent excellence wonderful amazing impressive
+spectacular stunning beautiful splendid glorious triumph triumphs triumphant
+prevail prevailed optimistic optimism hope hopes hopeful positive inspire
+inspired inspires inspiring inspiration uplift uplifted uplifting heartwarming
+joy joyful happiness happy delight delighted delights grateful gratitude
+thanks thanked blessing blessed pioneer pioneering innovate innovated
+innovation innovative launch launches launched launching boost
+boosts boosted boosting strengthen strengthened strengthens collaborate
+collaborated collaboration unite united unifies unify renew renewed renews
+`.trim().split(/\s+/));
+
+const AMBIGUOUS_CITIES = new Set([
+  'search','page','home','news','today','world','global','report',
+  'city','town','state','north','south','east','west','of','the',
+  'and','york','lincoln','victoria','mobile','phoenix','venus',
+  'jupiter','amazon','apple','shell','santiago',
+]);
+
+const COUNTRY_ALIASES = {
+  'america':'US','u.s.':'US','u.s':'US','us':'US','usa':'US','united states':'US',
+  'uk':'GB','u.k.':'GB','britain':'GB','england':'GB','scotland':'GB','wales':'GB',
+  'russia':'RU','russian':'RU','china':'CN','chinese':'CN','beijing':'CN',
+  'iran':'IR','iranian':'IR','iraq':'IQ','iraqi':'IQ',
+  'israel':'IL','israeli':'IL','palestine':'PS','palestinian':'PS','gaza':'PS',
+  'ukraine':'UA','ukrainian':'UA','kyiv':'UA','syria':'SY','syrian':'SY',
+  'north korea':'KP','south korea':'KR','korea':'KR',
+  'japan':'JP','japanese':'JP','india':'IN','indian':'IN','delhi':'IN',
+  'pakistan':'PK','afghan':'AF','afghanistan':'AF',
+  'germany':'DE','german':'DE','berlin':'DE','france':'FR','french':'FR','paris':'FR',
+  'spain':'ES','spanish':'ES','madrid':'ES','italy':'IT','italian':'IT','rome':'IT',
+  'turkey':'TR','turkish':'TR','ankara':'TR','egypt':'EG','egyptian':'EG','cairo':'EG',
+  'brazil':'BR','brazilian':'BR','mexico':'MX','mexican':'MX',
+  'canada':'CA','canadian':'CA','ottawa':'CA','australia':'AU','australian':'AU',
+  'south africa':'ZA','nigeria':'NG','kenya':'KE','ethiopia':'ET',
+  'saudi':'SA','yemen':'YE','lebanon':'LB','lebanese':'LB',
+  'venezuela':'VE','argentina':'AR','chile':'CL','colombia':'CO',
+  'vietnam':'VN','thailand':'TH','indonesia':'ID','malaysia':'MY',
+  'philippines':'PH','filipino':'PH','taiwan':'TW','hong kong':'HK',
+  'sudan':'SD','south sudan':'SS','myanmar':'MM','burma':'MM',
+  'european union':'EU',
+};
+
+// ── DOM refs ──
+const $status = document.getElementById('status');
+const $articlePanel = document.getElementById('article-panel');
+const $chartSummary = document.getElementById('chart-summary');
+const $refresh = document.getElementById('refresh');
+const $overlay = document.getElementById('loading-overlay');
+const $loaderText = document.getElementById('loader-text');
+
+let news = null;
+let countriesGeo = null;
+let citiesGeo = null;
+let globe = null;
+let chart = null;
+
+// ── Indexes (built once) ──
+let citiesIndex = null;   // Map<lowerName, {name, lat, lon, country}>
+let citiesRegex = null;
+let countryCentroids = null; // {byName, byIso}
+let countryRegex = null;
+let countryTopCities = null; // Map<lowerCountryName, [{name,lat,lon,pop}]>
+
+// ── Utility ──
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c =>
+    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function isoOf(feature) {
+  const p = feature.properties || {};
+  for (const k of ['ISO_A2_EH','ISO_A2','WB_A2','FIPS_10_']) {
+    const v = p[k];
+    if (v && v !== '-99' && v.trim()) return v;
+  }
+  return null;
+}
+
+function nameOf(feature) {
+  const p = feature.properties || {};
+  return p.NAME || p.ADMIN || p.NAME_LONG || 'Unknown';
+}
+
+function cortisolColor(c, alpha = 1) {
+  const x = Math.max(0, Math.min(1, c));
+  const hue = (1 - x) * 120;
+  const sat = 55 + Math.abs(0.5 - x) * 30;
+  const light = 50 - Math.abs(0.5 - x) * 5;
+  return `hsla(${hue.toFixed(1)}, ${sat.toFixed(0)}%, ${light.toFixed(0)}%, ${alpha})`;
+}
+
+function hashStr(s) {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) {
+    h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+  }
+  return Math.abs(h) >>> 0;
+}
+
+function jitter(url, lat, lon, deg = 2.5) {
+  const h = hashStr(url);
+  const rx = ((h & 0xFFFF) / 0xFFFF) - 0.5;
+  const ry = (((h >> 16) & 0xFFFF) / 0xFFFF) - 0.5;
+  return [lat + ry * deg, lon + rx * deg];
+}
+
+// ── Sentiment ──
+const wordRe = /[A-Za-z][A-Za-z'-]+/g;
+
+function computeTone(text) {
+  if (!text) return 0;
+  let pos = 0, neg = 0;
+  const words = text.toLowerCase().match(wordRe) || [];
+  for (const w of words) {
+    if (POSITIVE_WORDS.has(w)) pos++;
+    if (NEGATIVE_WORDS.has(w)) neg++;
+  }
+  if (pos === 0 && neg === 0) return 0;
+  return (pos - neg) / (pos + neg);
+}
+
+function toneToCortisol(tone) {
+  return Math.max(0, Math.min(1, (1 - tone) / 2));
+}
+
+// ── Geometry helpers ──
+function bbox(geom) {
+  let minx = Infinity, miny = Infinity, maxx = -Infinity, maxy = -Infinity;
+  let rings;
+  if (geom.type === 'Polygon') rings = [geom.coordinates[0]];
+  else if (geom.type === 'MultiPolygon') rings = geom.coordinates.map(p => p[0]);
+  else return null;
+  for (const ring of rings) {
+    for (const [x, y] of ring) {
+      if (x < minx) minx = x; if (x > maxx) maxx = x;
+      if (y < miny) miny = y; if (y > maxy) maxy = y;
+    }
+  }
+  return [minx, miny, maxx, maxy];
+}
+
+// ── Build indexes ──
+function buildCitiesIndex() {
+  if (citiesIndex) return;
+  const rows = [];
+  const seen = new Set();
+  for (const f of citiesGeo.features) {
+    const p = f.properties || {};
+    const name = (p.name || p.NAME || '').trim();
+    if (!name || name.length < 4) continue;
+    if (AMBIGUOUS_CITIES.has(name.toLowerCase())) continue;
+    const coords = (f.geometry || {}).coordinates || [];
+    if (coords.length < 2) continue;
+    const country = (p.adm0name || p.ADM0NAME || '').trim();
+    const key = name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    rows.push({ key, name, lat: coords[1], lon: coords[0], country });
+  }
+  rows.sort((a, b) => b.key.length - a.key.length);
+  citiesIndex = new Map(rows.map(r => [r.key, r]));
+  // Build regex — longest first
+  const pattern = '\\b(' + rows.map(r => r.key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')\\b';
+  citiesRegex = new RegExp(pattern, 'i');
+}
+
+function buildCountryCentroids() {
+  if (countryCentroids) return;
+  const byName = {}, byIso = {};
+  for (const f of countriesGeo.features) {
+    const p = f.properties || {};
+    const bb = bbox(f.geometry || {});
+    if (!bb) continue;
+    let cx = (bb[0] + bb[2]) / 2, cy = (bb[1] + bb[3]) / 2;
+    if (p.LABEL_X != null && p.LABEL_Y != null) {
+      cx = +p.LABEL_X; cy = +p.LABEL_Y;
+    }
+    const iso = isoOf(f);
+    const name = nameOf(f);
+    const rec = { lat: cy, lon: cx, name, iso, bbox: bb };
+    if (iso) byIso[iso] = rec;
+    for (const nk of [name, p.NAME_LONG, p.ADMIN, p.FORMAL_EN, p.NAME_SORT]) {
+      if (nk) byName[String(nk).trim().toLowerCase()] = rec;
+    }
+  }
+  for (const [alias, iso] of Object.entries(COUNTRY_ALIASES)) {
+    if (byIso[iso]) byName[alias] = byIso[iso];
+  }
+  const nameKeys = Object.keys(byName).filter(k => k.length >= 4).sort((a,b) => b.length - a.length);
+  const pattern = '\\b(' + nameKeys.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')\\b';
+  countryRegex = new RegExp(pattern, 'i');
+  countryCentroids = { byName, byIso };
+}
+
+function buildCountryTopCities() {
+  if (countryTopCities) return;
+  const byCountry = {};
+  for (const f of citiesGeo.features) {
+    const p = f.properties || {};
+    const name = (p.name || '').trim();
+    const country = (p.adm0name || '').trim();
+    const coords = (f.geometry || {}).coordinates || [];
+    if (!name || !country || coords.length < 2) continue;
+    const pop = parseInt(p.pop_max) || 0;
+    const key = country.toLowerCase();
+    if (!byCountry[key]) byCountry[key] = [];
+    byCountry[key].push({ name, lat: coords[1], lon: coords[0], pop });
+  }
+  for (const k of Object.keys(byCountry)) {
+    byCountry[k].sort((a, b) => b.pop - a.pop);
+    byCountry[k] = byCountry[k].slice(0, 25);
+  }
+  countryTopCities = byCountry;
+}
+
+function pickCountryCity(countryName, url) {
+  if (!countryName) return null;
+  const cities = countryTopCities[countryName.trim().toLowerCase()];
+  if (!cities || !cities.length) return null;
+  return cities[hashStr(url) % cities.length];
+}
+
+// ── Geocoding ──
+function geocodeArticle(title, sourcecountry, url) {
+  if (title) {
+    const cm = citiesRegex.exec(title);
+    if (cm) {
+      const row = citiesIndex.get(cm[1].toLowerCase());
+      if (row) {
+        let ciso = null;
+        if (row.country) {
+          const cr = countryCentroids.byName[row.country.toLowerCase()];
+          if (cr) ciso = cr.iso;
+        }
+        const [jlat, jlon] = jitter(url, row.lat, row.lon, 0.4);
+        return { lat: jlat, lon: jlon, place: row.name, iso: ciso, country: row.country || null };
+      }
+    }
+    const crm = countryRegex.exec(title);
+    if (crm) {
+      const rec = countryCentroids.byName[crm[1].toLowerCase()];
+      if (rec) {
+        const city = pickCountryCity(rec.name, url);
+        if (city) {
+          const [jl, jo] = jitter(url, city.lat, city.lon, 0.3);
+          return { lat: jl, lon: jo, place: city.name, iso: rec.iso, country: rec.name };
+        }
+        const [jl, jo] = jitter(url, rec.lat, rec.lon, 2.5);
+        return { lat: jl, lon: jo, place: rec.name, iso: rec.iso, country: rec.name };
+      }
+    }
+  }
+  if (sourcecountry) {
+    const rec = countryCentroids.byName[sourcecountry.trim().toLowerCase()];
+    if (rec) {
+      const city = pickCountryCity(rec.name, url);
+      if (city) {
+        const [jl, jo] = jitter(url, city.lat, city.lon, 0.3);
+        return { lat: jl, lon: jo, place: city.name, iso: rec.iso, country: rec.name };
+      }
+      const [jl, jo] = jitter(url, rec.lat, rec.lon, 2.5);
+      return { lat: jl, lon: jo, place: rec.name, iso: rec.iso, country: rec.name };
+    }
+  }
+  return null;
+}
+
+// ── CORS proxy ──
+// GDELT blocks direct browser requests. We route through allorigins.win.
+const CORS_PROXY = 'https://api.allorigins.win/get?url=';
+
+function proxied(url) {
+  return `${CORS_PROXY}${encodeURIComponent(url)}`;
+}
+
+// ── GDELT fetching ──
+function gdeltUrl(query) {
+  return `${GDELT_BASE}?query=${encodeURIComponent(query)}&mode=ArtList&format=json&maxrecords=${GDELT_PER_QUERY}&timespan=1d&sort=datedesc`;
+}
+
+async function fetchOneGdelt(query) {
+  try {
+    const resp = await fetch(proxied(gdeltUrl(query)));
+    if (!resp.ok) { console.warn('GDELT proxy HTTP error', resp.status); return []; }
+    const wrapper = await resp.json();
+    // allorigins wraps the response in {contents: "..."}
+    const text = wrapper.contents;
+    if (!text) return [];
+    let data;
+    try { data = JSON.parse(text); } catch (e) { console.warn('GDELT JSON parse error', e); return []; }
+    return data.articles || [];
+  } catch (e) {
+    console.warn('GDELT query failed:', query.slice(0, 40), e.message);
+    return [];
+  }
+}
+
+async function fetchAllGdelt() {
+  const results = await Promise.all(GDELT_QUERIES.map(q => fetchOneGdelt(q)));
+  const seen = new Set();
+  const merged = [];
+  for (const batch of results) {
+    for (const art of batch) {
+      const url = (art.url || '').trim();
+      if (!url || seen.has(url)) continue;
+      seen.add(url);
+      merged.push(art);
+    }
+  }
+  console.log(`GDELT: ${merged.length} unique articles from ${results.reduce((s,b) => s + b.length, 0)} total`);
+
+  // ── Fallback demo data ──
+  // If GDELT returned nothing (proxy down, rate limited, etc.) use a curated
+  // demo set so the globe always has something meaningful to display.
+  if (merged.length === 0) {
+    console.warn('GDELT returned 0 articles — using built-in demo dataset');
+    $status.textContent = 'LIVE DATA UNAVAILABLE — SHOWING DEMO DATA';
+    return DEMO_ARTICLES;
+  }
+  return merged;
+}
+
+// ── Demo article dataset (used when GDELT is unreachable) ──
+const DEMO_ARTICLES = [
+  { title:'Ukraine conflict: frontline updates from Kharkiv', url:'https://www.bbc.com/news/world-europe-ukraine', domain:'bbc.com', sourcecountry:'ukraine' },
+  { title:'Gaza ceasefire talks resume in Cairo amid ongoing conflict', url:'https://www.aljazeera.com/news/2025/gaza-ceasefire', domain:'aljazeera.com', sourcecountry:'egypt' },
+  { title:'Russia launches missile strikes on Kyiv overnight', url:'https://www.reuters.com/world/europe/russia-kyiv', domain:'reuters.com', sourcecountry:'ukraine' },
+  { title:'Israel military operations continue in northern Gaza', url:'https://apnews.com/article/israel-gaza', domain:'apnews.com', sourcecountry:'israel' },
+  { title:'Sudan civil war: thousands flee to Chad as fighting intensifies', url:'https://www.theguardian.com/world/sudan', domain:'theguardian.com', sourcecountry:'sudan' },
+  { title:'Nobel Peace Prize awarded to democracy activists in Myanmar', url:'https://www.bbc.com/news/world/asia/myanmar-nobel', domain:'bbc.com', sourcecountry:'myanmar' },
+  { title:'India launches record-breaking satellite into orbit', url:'https://www.reuters.com/science/india-satellite', domain:'reuters.com', sourcecountry:'india' },
+  { title:'Brazil Amazon deforestation falls to ten-year low', url:'https://www.theguardian.com/world/brazil-amazon', domain:'theguardian.com', sourcecountry:'brazil' },
+  { title:'North Korea fires ballistic missile into Sea of Japan', url:'https://apnews.com/article/north-korea-missile', domain:'apnews.com', sourcecountry:'south korea' },
+  { title:'China economy: manufacturing growth beats expectations', url:'https://www.reuters.com/world/china-economy', domain:'reuters.com', sourcecountry:'china' },
+  { title:'Taiwan holds landmark trade agreement signing with US', url:'https://www.nytimes.com/2025/taiwan-us-trade', domain:'nytimes.com', sourcecountry:'taiwan' },
+  { title:'Japan earthquake: rescue teams search for survivors in Tokyo suburbs', url:'https://www.bbc.com/news/world-asia-japan-earthquake', domain:'bbc.com', sourcecountry:'japan' },
+  { title:'South Korea K-pop industry wins UNESCO cultural recognition', url:'https://www.reuters.com/world/south-korea-kpop', domain:'reuters.com', sourcecountry:'south korea' },
+  { title:'Nigeria presidential election marred by violence and fraud claims', url:'https://www.theguardian.com/world/nigeria-election', domain:'theguardian.com', sourcecountry:'nigeria' },
+  { title:'Kenya drought emergency declared as crops fail across eastern regions', url:'https://apnews.com/article/kenya-drought', domain:'apnews.com', sourcecountry:'kenya' },
+  { title:'Ethiopia peace deal signed bringing end to Tigray conflict', url:'https://www.bbc.com/news/world-africa-ethiopia-peace', domain:'bbc.com', sourcecountry:'ethiopia' },
+  { title:'South Africa power cuts ease as new solar plants come online', url:'https://www.reuters.com/world/africa/south-africa-solar', domain:'reuters.com', sourcecountry:'south africa' },
+  { title:'Germany announces record investment in green hydrogen energy', url:'https://www.dw.com/en/germany-hydrogen', domain:'dw.com', sourcecountry:'germany' },
+  { title:'France protests against pension reform turn violent in Paris', url:'https://www.france24.com/en/france/pension-protest', domain:'france24.com', sourcecountry:'france' },
+  { title:'UK Chancellor delivers autumn budget amid cost-of-living crisis', url:'https://www.theguardian.com/uk-news/uk-budget', domain:'theguardian.com', sourcecountry:'uk' },
+  { title:'Spain wildfires rage across Valencia region, thousands evacuated', url:'https://www.reuters.com/world/europe/spain-wildfires', domain:'reuters.com', sourcecountry:'spain' },
+  { title:'Italy floods: Venice underwater after record rainfall', url:'https://apnews.com/article/italy-floods-venice', domain:'apnews.com', sourcecountry:'italy' },
+  { title:'Poland wins landmark climate compensation case at European court', url:'https://www.dw.com/en/poland-climate-case', domain:'dw.com', sourcecountry:'germany' },
+  { title:'Mexico cartel violence: army deploys to border cities', url:'https://www.nytimes.com/2025/mexico-cartel', domain:'nytimes.com', sourcecountry:'mexico' },
+  { title:'Argentina economic crisis: IMF agrees new bailout terms', url:'https://www.reuters.com/world/americas/argentina-imf', domain:'reuters.com', sourcecountry:'argentina' },
+  { title:'Colombia celebrates record low murder rate in Bogotá', url:'https://apnews.com/article/colombia-bogota-safety', domain:'apnews.com', sourcecountry:'colombia' },
+  { title:'Venezuela opposition leader wins election in disputed vote', url:'https://www.theguardian.com/world/venezuela-election', domain:'theguardian.com', sourcecountry:'venezuela' },
+  { title:'USA Congress passes landmark AI regulation bill', url:'https://www.nytimes.com/2025/us-ai-regulation', domain:'nytimes.com', sourcecountry:'america' },
+  { title:'Canada wildfires threaten Alberta oil sands operations', url:'https://www.reuters.com/world/americas/canada-wildfire', domain:'reuters.com', sourcecountry:'canada' },
+  { title:'Australia floods: Queensland declares disaster as rivers burst banks', url:'https://www.bbc.com/news/world-australia-floods', domain:'bbc.com', sourcecountry:'australia' },
+  { title:'Iran nuclear talks collapse after latest IAEA inspection', url:'https://apnews.com/article/iran-nuclear-talks', domain:'apnews.com', sourcecountry:'iran' },
+  { title:'Saudi Arabia mega-city NEOM construction accelerates', url:'https://www.reuters.com/world/middle-east/saudi-neom', domain:'reuters.com', sourcecountry:'saudi' },
+  { title:'Pakistan floods: millions displaced as monsoon season worsens', url:'https://www.aljazeera.com/news/pakistan-floods', domain:'aljazeera.com', sourcecountry:'pakistan' },
+  { title:'Indonesia announces new capital city Nusantara officially open', url:'https://www.bbc.com/news/world-asia-indonesia-capital', domain:'bbc.com', sourcecountry:'indonesia' },
+  { title:'Philippines typhoon kills dozens, hundreds missing in Mindanao', url:'https://apnews.com/article/philippines-typhoon', domain:'apnews.com', sourcecountry:'philippines' },
+  { title:'Vietnam achieves record GDP growth driven by semiconductor exports', url:'https://www.reuters.com/world/asia-pacific/vietnam-gdp', domain:'reuters.com', sourcecountry:'vietnam' },
+  { title:'Thailand election results contested by opposition parties', url:'https://www.theguardian.com/world/thailand-election', domain:'theguardian.com', sourcecountry:'thailand' },
+  { title:'Sweden NATO integration complete with joint Arctic exercises', url:'https://www.dw.com/en/sweden-nato', domain:'dw.com', sourcecountry:'germany' },
+  { title:'Turkey earthquake kills hundreds in eastern provinces', url:'https://www.bbc.com/news/world-europe-turkey-earthquake', domain:'bbc.com', sourcecountry:'turkey' },
+  { title:'Egypt hosts peace summit for Horn of Africa nations', url:'https://www.aljazeera.com/news/egypt-africa-summit', domain:'aljazeera.com', sourcecountry:'egypt' },
+];
+
+// ── Build news payload (same logic as server.py) ──
+function buildNewsPayload(articles) {
+  const locationBuckets = {};
+  const byCountry = {};
+
+  for (const art of articles) {
+    const title = (art.title || '').trim();
+    const url = (art.url || '').trim();
+    if (!title || !url) continue;
+    const domain = (art.domain || '').trim();
+    const sourcecountry = (art.sourcecountry || '').trim();
+
+    const loc = geocodeArticle(title, sourcecountry, url);
+    if (!loc) continue;
+
+    const tone = computeTone(title);
+    const cortisol = toneToCortisol(tone);
+
+    const key = `${(Math.round(loc.lat * 2) / 2).toFixed(1)},${(Math.round(loc.lon * 2) / 2).toFixed(1)}`;
+    if (!locationBuckets[key]) {
+      locationBuckets[key] = {
+        lat: loc.lat, lon: loc.lon, name: loc.place,
+        country: loc.iso, countryName: loc.country, articles: [],
+      };
+    }
+    locationBuckets[key].articles.push({
+      url, title, meta: domain,
+      tone: +tone.toFixed(3), cortisol: +cortisol.toFixed(3),
+    });
+
+    if (loc.iso) {
+      if (!byCountry[loc.iso]) byCountry[loc.iso] = { name: loc.country || loc.iso, tones: [], count: 0 };
+      byCountry[loc.iso].tones.push(tone);
+      byCountry[loc.iso].count++;
+    }
+  }
+
+  const locations = [];
+  for (const bucket of Object.values(locationBuckets)) {
+    if (!bucket.articles.length) continue;
+    const avgTone = bucket.articles.reduce((s, a) => s + a.tone, 0) / bucket.articles.length;
+    bucket.tone = +avgTone.toFixed(3);
+    bucket.cortisol = +toneToCortisol(avgTone).toFixed(3);
+    locations.push(bucket);
+  }
+
+  const countries = {};
+  for (const [iso, v] of Object.entries(byCountry)) {
+    const avg = v.tones.length ? v.tones.reduce((s, t) => s + t, 0) / v.tones.length : 0;
+    countries[iso] = {
+      name: v.name, avgTone: +avg.toFixed(3),
+      cortisol: +toneToCortisol(avg).toFixed(3), count: v.count,
+    };
+  }
+
+  return { locations, countries, fetchedAt: Date.now() / 1000, totalArticles: articles.length };
+}
+
+// ── Data loading ──
+async function loadAll() {
+  $loaderText.textContent = 'Loading country boundaries…';
+  $status.textContent = 'LOADING COUNTRIES…';
+
+  async function fetchJson(url) {
+    try {
+      const r = await fetch(url);
+      if (r.ok) return r.json();
+    } catch (_) {}
+    const r2 = await fetch(proxied(url));
+    if (!r2.ok) throw new Error(`Failed to load ${url} (HTTP ${r2.status})`);
+    const w = await r2.json();
+    return JSON.parse(w.contents);
+  }
+
+  const [countriesResp, citiesResp] = await Promise.all([
+    fetchJson(COUNTRIES_URL),
+    fetchJson(CITIES_URL),
+  ]);
+  countriesGeo = countriesResp;
+  citiesGeo = citiesResp;
+
+  $loaderText.textContent = 'Building geo indexes…';
+  $status.textContent = 'BUILDING INDEXES…';
+  buildCitiesIndex();
+  buildCountryCentroids();
+  buildCountryTopCities();
+
+  $loaderText.textContent = 'Fetching live news from GDELT…';
+  $status.textContent = 'FETCHING NEWS…';
+  const articles = await fetchAllGdelt();
+
+  $loaderText.textContent = 'Analyzing sentiment…';
+  $status.textContent = 'ANALYZING…';
+  news = buildNewsPayload(articles);
+
+  const nLoc = news.locations.length;
+  const nCountry = Object.keys(news.countries).length;
+  $status.textContent = `${nLoc} LOCATIONS · ${nCountry} COUNTRIES · LAST 24H`;
+}
+
+// ── Globe ──
+function initGlobe() {
+  const el = document.getElementById('globe');
+
+  // Procedural ocean texture
+  const oc = document.createElement('canvas');
+  oc.width = 512; oc.height = 256;
+  const octx = oc.getContext('2d');
+  const grad = octx.createLinearGradient(0, 0, 0, 256);
+  grad.addColorStop(0, '#081e42');
+  grad.addColorStop(0.3, '#0b3060');
+  grad.addColorStop(0.5, '#0e4078');
+  grad.addColorStop(0.7, '#0b3060');
+  grad.addColorStop(1, '#081e42');
+  octx.fillStyle = grad;
+  octx.fillRect(0, 0, 512, 256);
+  for (let i = 0; i < 5000; i++) {
+    const ox = Math.random() * 512, oy = Math.random() * 256;
+    octx.fillStyle = `rgba(${80 + Math.random()*40}, ${140 + Math.random()*40}, 210, ${0.015 + Math.random()*0.025})`;
+    octx.fillRect(ox, oy, 1 + Math.random() * 2, 1);
+  }
+
+  globe = Globe()(el)
+    .globeImageUrl(oc.toDataURL())
+    .bumpImageUrl('https://unpkg.com/three-globe/example/img/earth-topology.png')
+    .backgroundImageUrl('https://unpkg.com/three-globe/example/img/night-sky.png')
+    .atmosphereColor('rgba(50, 140, 255, 0.65)')
+    .atmosphereAltitude(0.22)
+    .showGraticules(true);
+
+  // Style graticules after render
+  setTimeout(() => {
+    if (globe.scene()) {
+      globe.scene().traverse(obj => {
+        if (obj.isLine || obj.isLineSegments) {
+          if (obj.material) {
+            obj.material.color.setHex(0x152e5a);
+            obj.material.opacity = 0.12;
+            obj.material.transparent = true;
+            obj.material.needsUpdate = true;
+          }
+        }
+      });
+    }
+  }, 600);
+
+  // Country polygons
+  globe
+    .polygonsData(countriesGeo.features)
+    .polygonAltitude(d => {
+      const c = news.countries[isoOf(d)];
+      return c ? 0.012 : 0.006;
+    })
+    .polygonCapColor(d => {
+      const c = news.countries[isoOf(d)];
+      if (!c) return 'rgba(38, 65, 52, 0.5)';
+      return cortisolColor(c.cortisol, 0.82);
+    })
+    .polygonSideColor(d => {
+      const c = news.countries[isoOf(d)];
+      if (!c) return 'rgba(28, 50, 40, 0.35)';
+      return cortisolColor(c.cortisol, 0.25);
+    })
+    .polygonStrokeColor(() => 'rgba(120, 180, 255, 0.15)')
+    .polygonLabel(d => {
+      const iso = isoOf(d);
+      const c = news.countries[iso];
+      const name = nameOf(d);
+      if (!c) return `<div class="tt"><b>${escapeHtml(name)}</b><br>No recent news</div>`;
+      return `<div class="tt"><b>${escapeHtml(name)}</b><br>Cortisol: <b style="color:${cortisolColor(c.cortisol)}">${c.cortisol.toFixed(2)}</b><br>${c.count} article${c.count===1?'':'s'}</div>`;
+    });
+
+  // Markers
+  globe
+    .pointsData(news.locations)
+    .pointLat('lat').pointLng('lon')
+    .pointAltitude(d => Math.min(0.10, 0.012 + d.articles.length * 0.006))
+    .pointRadius(d => 0.30 + Math.min(0.7, d.articles.length * 0.05))
+    .pointColor(d => cortisolColor(d.cortisol, 0.95))
+    .pointResolution(8)
+    .pointLabel(d => `<div class="tt"><b>${escapeHtml(d.name || d.countryName || 'News')}</b>${d.countryName ? `<span class="tt-sub">${escapeHtml(d.countryName)}</span>`:''}<br>${d.articles.length} article${d.articles.length===1?'':'s'} · cortisol <b style="color:${cortisolColor(d.cortisol)}">${d.cortisol.toFixed(2)}</b></div>`)
+    .onPointClick(showLocation)
+    .onPointHover(p => { el.style.cursor = p ? 'pointer' : 'default'; });
+
+  globe.controls().autoRotate = true;
+  globe.controls().autoRotateSpeed = 0.35;
+  el.addEventListener('mousedown', () => { globe.controls().autoRotate = false; });
+  el.addEventListener('touchstart', () => { globe.controls().autoRotate = false; });
+
+  const resize = () => globe.width(el.clientWidth).height(el.clientHeight);
+  resize();
+  window.addEventListener('resize', resize);
+}
+
+function showLocation(loc) {
+  globe.pointOfView({ lat: loc.lat, lng: loc.lon, altitude: 1.6 }, 1200);
+  const arts = loc.articles.map(a => `
+    <li class="article">
+      <a class="article-title" href="${escapeHtml(a.url)}" target="_blank" rel="noopener">${escapeHtml(a.title)}</a>
+      <div class="article-meta">
+        <span class="badge" style="background:${cortisolColor(a.cortisol, 0.6)}">cortisol ${a.cortisol.toFixed(2)}</span>
+        ${a.meta ? `<span class="src">${escapeHtml(a.meta)}</span>` : ''}
+      </div>
+    </li>`).join('');
+
+  $articlePanel.innerHTML = `
+    <h2>📍 Selected Location</h2>
+    <div class="loc-name">${escapeHtml(loc.name || 'News location')}</div>
+    <div class="loc-summary">
+      <span class="badge big" style="background:${cortisolColor(loc.cortisol, 0.7)}">cortisol ${loc.cortisol.toFixed(2)}</span>
+      ${loc.countryName ? `<span class="country">${escapeHtml(loc.countryName)}${loc.country ? ` (${escapeHtml(loc.country)})`:''}</span>` : ''}
+      <span class="count">${loc.articles.length} article${loc.articles.length===1?'':'s'}</span>
+    </div>
+    <ul class="articles">${arts}</ul>`;
+}
+
+function initChart() {
+  const entries = Object.entries(news.countries || {})
+    .filter(([,v]) => v && v.count >= 1)
+    .sort((a, b) => b[1].cortisol - a[1].cortisol);
+
+  const top = entries.slice(0, 15);
+  const ctx = document.getElementById('chart').getContext('2d');
+  if (chart) chart.destroy();
+
+  chart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: top.map(([iso, v]) => v.name || iso),
+      datasets: [{
+        label: 'Cortisol',
+        data: top.map(([, v]) => v.cortisol),
+        backgroundColor: top.map(([, v]) => cortisolColor(v.cortisol, 0.8)),
+        borderColor: top.map(([, v]) => cortisolColor(v.cortisol, 1)),
+        borderWidth: 1, borderRadius: 3,
+      }],
+    },
+    options: {
+      indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      animation: { duration: 600 },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          titleFont: { family: "'Space Mono', monospace", size: 11 },
+          bodyFont: { family: "'Outfit', sans-serif", size: 12 },
+          callbacks: {
+            label: (ctx) => {
+              const [, v] = top[ctx.dataIndex];
+              return [`Cortisol: ${v.cortisol.toFixed(2)}`, `Avg tone: ${v.avgTone.toFixed(2)}`, `${v.count} article${v.count===1?'':'s'}`];
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          min: 0, max: 1,
+          ticks: { color: '#5a6a82', font: { family: "'Space Mono', monospace", size: 10 }, stepSize: 0.25 },
+          grid: { color: 'rgba(255,255,255,0.04)' },
+          title: { display: true, text: 'CORTISOL (0 CALM → 1 STRESSED)', color: '#5a6a82', font: { family: "'Space Mono', monospace", size: 9 } },
+        },
+        y: {
+          ticks: { color: '#8a9ab4', font: { family: "'Outfit', sans-serif", size: 11 } },
+          grid: { display: false },
+        },
+      },
+    },
+  });
+
+  if (entries.length === 0) {
+    $chartSummary.textContent = 'No data — try refreshing.';
+    return;
+  }
+  const totalArticles = entries.reduce((s, [, v]) => s + v.count, 0);
+  const weighted = entries.reduce((s, [, v]) => s + v.cortisol * v.count, 0) / Math.max(1, totalArticles);
+  $chartSummary.innerHTML = `WORLD CORTISOL: <b style="color:${cortisolColor(weighted)}">${weighted.toFixed(2)}</b> · ${entries.length} COUNTRIES · ${totalArticles} ARTICLES`;
+}
+
+async function refresh() {
+  $refresh.disabled = true;
+  $status.textContent = 'REFRESHING…';
+  try {
+    const articles = await fetchAllGdelt();
+    news = buildNewsPayload(articles);
+    globe.polygonsData(countriesGeo.features);
+    globe.pointsData(news.locations);
+    initChart();
+    $status.textContent = `${news.locations.length} LOCATIONS · ${Object.keys(news.countries).length} COUNTRIES · REFRESHED`;
+  } catch (e) {
+    $status.textContent = `REFRESH FAILED: ${e.message}`;
+  } finally {
+    $refresh.disabled = false;
+  }
+}
+
+$refresh.addEventListener('click', refresh);
+
+(async function main() {
+  try {
+    await loadAll();
+    initGlobe();
+    initChart();
+    $overlay.classList.add('hidden');
+  } catch (e) {
+    $status.textContent = `FAILED: ${e.message}`;
+    $loaderText.textContent = `Error: ${e.message}`;
+    console.error(e);
+  }
+})();
+</script>
+</body>
+</html>
