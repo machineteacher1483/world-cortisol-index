@@ -754,7 +754,41 @@ async function fetchNewsData() {
     return [];
   }
 }
+async function fetchAggregatedNews() {
+  // Fire all APIs concurrently to save time
+  const [gdeltNews, gnewsData, newsDataIo] = await Promise.all([
+    fetchAllGdelt(),
+    fetchGNews(),
+    fetchNewsData()
+  ]);
+
+  // Combine them all into one massive array
+  const combined = [...gdeltNews, ...gnewsData, ...newsDataIo];
+
+  // Deduplicate by URL so we don't map the exact same article twice
+  const seenUrls = new Set();
+  const uniqueArticles = [];
+
+  for (const art of combined) {
+    const url = (art.url || '').trim();
+    if (!url || seenUrls.has(url)) continue;
+    
+    seenUrls.add(url);
+    uniqueArticles.push(art);
+  }
+
+  console.log(`Aggregated ${uniqueArticles.length} total unique articles from multiple APIs.`);
   
+  // Fallback to demo data if literally every API fails
+  if (uniqueArticles.length === 0) {
+    console.warn('All APIs returned 0 articles — using built-in demo dataset');
+    $status.textContent = 'LIVE DATA UNAVAILABLE — SHOWING DEMO DATA';
+    return DEMO_ARTICLES;
+  }
+
+  return uniqueArticles;
+}
+  const articles = await fetchAggregatedNews();
   // ── Fallback demo data ──
   // If GDELT returned nothing (proxy down, rate limited, etc.) use a curated
   // demo set so the globe always has something meaningful to display.
@@ -899,8 +933,8 @@ async function loadAll() {
 
   $loaderText.textContent = 'Fetching live news from GDELT…';
   $status.textContent = 'FETCHING NEWS…';
-  const articles = await fetchAllGdelt();
-
+  const articles = await fetchAggregatedNews();
+  
   $loaderText.textContent = 'Analyzing sentiment…';
   $status.textContent = 'ANALYZING…';
   news = buildNewsPayload(articles);
