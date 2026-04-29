@@ -675,9 +675,9 @@ function proxied(url) {
 
 // ── GDELT fetching ──
 function gdeltUrl(query) {
-  return `${GDELT_BASE}?query=${encodeURIComponent(query)}&mode=ArtList&format=json&maxrecords=${GDELT_PER_QUERY}&timespan=1d&sort=datedesc`;
+  return `${GDELT_BASE}?query=${encodeURIComponent(query)}&mode=ArtList&format=json&maxrecords=${GDELT_PER_QUERY}&timespan=7d&sort=datedesc`;
 }
-
+  
 async function fetchOneGdelt(query) {
   try {
     const resp = await fetch(proxied(gdeltUrl(query)));
