@@ -665,6 +665,14 @@ function geocodeArticle(title, sourcecountry, url) {
   return null;
 }
 
+// ── CORS proxy ──
+// GDELT blocks direct browser requests. We route through allorigins.win.
+const CORS_PROXY = 'https://api.allorigins.win/get?url=';
+
+function proxied(url) {
+  return `${CORS_PROXY}${encodeURIComponent(url)}`;
+}
+
 // ── GDELT fetching ──
 function gdeltUrl(query) {
   return `${GDELT_BASE}?query=${encodeURIComponent(query)}&mode=ArtList&format=json&maxrecords=${GDELT_PER_QUERY}&timespan=1d&sort=datedesc`;
@@ -672,12 +680,17 @@ function gdeltUrl(query) {
 
 async function fetchOneGdelt(query) {
   try {
-    const resp = await fetch(gdeltUrl(query));
-    if (!resp.ok) return [];
-    const data = await resp.json();
+    const resp = await fetch(proxied(gdeltUrl(query)));
+    if (!resp.ok) { console.warn('GDELT proxy HTTP error', resp.status); return []; }
+    const wrapper = await resp.json();
+    // allorigins wraps the response in {contents: "..."}
+    const text = wrapper.contents;
+    if (!text) return [];
+    let data;
+    try { data = JSON.parse(text); } catch (e) { console.warn('GDELT JSON parse error', e); return []; }
     return data.articles || [];
   } catch (e) {
-    console.warn('GDELT query failed:', query.slice(0, 40), e);
+    console.warn('GDELT query failed:', query.slice(0, 40), e.message);
     return [];
   }
 }
@@ -695,8 +708,61 @@ async function fetchAllGdelt() {
     }
   }
   console.log(`GDELT: ${merged.length} unique articles from ${results.reduce((s,b) => s + b.length, 0)} total`);
+
+  // ── Fallback demo data ──
+  // If GDELT returned nothing (proxy down, rate limited, etc.) use a curated
+  // demo set so the globe always has something meaningful to display.
+  if (merged.length === 0) {
+    console.warn('GDELT returned 0 articles — using built-in demo dataset');
+    $status.textContent = 'LIVE DATA UNAVAILABLE — SHOWING DEMO DATA';
+    return DEMO_ARTICLES;
+  }
   return merged;
 }
+
+// ── Demo article dataset (used when GDELT is unreachable) ──
+const DEMO_ARTICLES = [
+  { title:'Ukraine conflict: frontline updates from Kharkiv', url:'https://www.bbc.com/news/world-europe-ukraine', domain:'bbc.com', sourcecountry:'ukraine' },
+  { title:'Gaza ceasefire talks resume in Cairo amid ongoing conflict', url:'https://www.aljazeera.com/news/2025/gaza-ceasefire', domain:'aljazeera.com', sourcecountry:'egypt' },
+  { title:'Russia launches missile strikes on Kyiv overnight', url:'https://www.reuters.com/world/europe/russia-kyiv', domain:'reuters.com', sourcecountry:'ukraine' },
+  { title:'Israel military operations continue in northern Gaza', url:'https://apnews.com/article/israel-gaza', domain:'apnews.com', sourcecountry:'israel' },
+  { title:'Sudan civil war: thousands flee to Chad as fighting intensifies', url:'https://www.theguardian.com/world/sudan', domain:'theguardian.com', sourcecountry:'sudan' },
+  { title:'Nobel Peace Prize awarded to democracy activists in Myanmar', url:'https://www.bbc.com/news/world/asia/myanmar-nobel', domain:'bbc.com', sourcecountry:'myanmar' },
+  { title:'India launches record-breaking satellite into orbit', url:'https://www.reuters.com/science/india-satellite', domain:'reuters.com', sourcecountry:'india' },
+  { title:'Brazil Amazon deforestation falls to ten-year low', url:'https://www.theguardian.com/world/brazil-amazon', domain:'theguardian.com', sourcecountry:'brazil' },
+  { title:'North Korea fires ballistic missile into Sea of Japan', url:'https://apnews.com/article/north-korea-missile', domain:'apnews.com', sourcecountry:'south korea' },
+  { title:'China economy: manufacturing growth beats expectations', url:'https://www.reuters.com/world/china-economy', domain:'reuters.com', sourcecountry:'china' },
+  { title:'Taiwan holds landmark trade agreement signing with US', url:'https://www.nytimes.com/2025/taiwan-us-trade', domain:'nytimes.com', sourcecountry:'taiwan' },
+  { title:'Japan earthquake: rescue teams search for survivors in Tokyo suburbs', url:'https://www.bbc.com/news/world-asia-japan-earthquake', domain:'bbc.com', sourcecountry:'japan' },
+  { title:'South Korea K-pop industry wins UNESCO cultural recognition', url:'https://www.reuters.com/world/south-korea-kpop', domain:'reuters.com', sourcecountry:'south korea' },
+  { title:'Nigeria presidential election marred by violence and fraud claims', url:'https://www.theguardian.com/world/nigeria-election', domain:'theguardian.com', sourcecountry:'nigeria' },
+  { title:'Kenya drought emergency declared as crops fail across eastern regions', url:'https://apnews.com/article/kenya-drought', domain:'apnews.com', sourcecountry:'kenya' },
+  { title:'Ethiopia peace deal signed bringing end to Tigray conflict', url:'https://www.bbc.com/news/world-africa-ethiopia-peace', domain:'bbc.com', sourcecountry:'ethiopia' },
+  { title:'South Africa power cuts ease as new solar plants come online', url:'https://www.reuters.com/world/africa/south-africa-solar', domain:'reuters.com', sourcecountry:'south africa' },
+  { title:'Germany announces record investment in green hydrogen energy', url:'https://www.dw.com/en/germany-hydrogen', domain:'dw.com', sourcecountry:'germany' },
+  { title:'France protests against pension reform turn violent in Paris', url:'https://www.france24.com/en/france/pension-protest', domain:'france24.com', sourcecountry:'france' },
+  { title:'UK Chancellor delivers autumn budget amid cost-of-living crisis', url:'https://www.theguardian.com/uk-news/uk-budget', domain:'theguardian.com', sourcecountry:'uk' },
+  { title:'Spain wildfires rage across Valencia region, thousands evacuated', url:'https://www.reuters.com/world/europe/spain-wildfires', domain:'reuters.com', sourcecountry:'spain' },
+  { title:'Italy floods: Venice underwater after record rainfall', url:'https://apnews.com/article/italy-floods-venice', domain:'apnews.com', sourcecountry:'italy' },
+  { title:'Poland wins landmark climate compensation case at European court', url:'https://www.dw.com/en/poland-climate-case', domain:'dw.com', sourcecountry:'germany' },
+  { title:'Mexico cartel violence: army deploys to border cities', url:'https://www.nytimes.com/2025/mexico-cartel', domain:'nytimes.com', sourcecountry:'mexico' },
+  { title:'Argentina economic crisis: IMF agrees new bailout terms', url:'https://www.reuters.com/world/americas/argentina-imf', domain:'reuters.com', sourcecountry:'argentina' },
+  { title:'Colombia celebrates record low murder rate in Bogotá', url:'https://apnews.com/article/colombia-bogota-safety', domain:'apnews.com', sourcecountry:'colombia' },
+  { title:'Venezuela opposition leader wins election in disputed vote', url:'https://www.theguardian.com/world/venezuela-election', domain:'theguardian.com', sourcecountry:'venezuela' },
+  { title:'USA Congress passes landmark AI regulation bill', url:'https://www.nytimes.com/2025/us-ai-regulation', domain:'nytimes.com', sourcecountry:'america' },
+  { title:'Canada wildfires threaten Alberta oil sands operations', url:'https://www.reuters.com/world/americas/canada-wildfire', domain:'reuters.com', sourcecountry:'canada' },
+  { title:'Australia floods: Queensland declares disaster as rivers burst banks', url:'https://www.bbc.com/news/world-australia-floods', domain:'bbc.com', sourcecountry:'australia' },
+  { title:'Iran nuclear talks collapse after latest IAEA inspection', url:'https://apnews.com/article/iran-nuclear-talks', domain:'apnews.com', sourcecountry:'iran' },
+  { title:'Saudi Arabia mega-city NEOM construction accelerates', url:'https://www.reuters.com/world/middle-east/saudi-neom', domain:'reuters.com', sourcecountry:'saudi' },
+  { title:'Pakistan floods: millions displaced as monsoon season worsens', url:'https://www.aljazeera.com/news/pakistan-floods', domain:'aljazeera.com', sourcecountry:'pakistan' },
+  { title:'Indonesia announces new capital city Nusantara officially open', url:'https://www.bbc.com/news/world-asia-indonesia-capital', domain:'bbc.com', sourcecountry:'indonesia' },
+  { title:'Philippines typhoon kills dozens, hundreds missing in Mindanao', url:'https://apnews.com/article/philippines-typhoon', domain:'apnews.com', sourcecountry:'philippines' },
+  { title:'Vietnam achieves record GDP growth driven by semiconductor exports', url:'https://www.reuters.com/world/asia-pacific/vietnam-gdp', domain:'reuters.com', sourcecountry:'vietnam' },
+  { title:'Thailand election results contested by opposition parties', url:'https://www.theguardian.com/world/thailand-election', domain:'theguardian.com', sourcecountry:'thailand' },
+  { title:'Sweden NATO integration complete with joint Arctic exercises', url:'https://www.dw.com/en/sweden-nato', domain:'dw.com', sourcecountry:'germany' },
+  { title:'Turkey earthquake kills hundreds in eastern provinces', url:'https://www.bbc.com/news/world-europe-turkey-earthquake', domain:'bbc.com', sourcecountry:'turkey' },
+  { title:'Egypt hosts peace summit for Horn of Africa nations', url:'https://www.aljazeera.com/news/egypt-africa-summit', domain:'aljazeera.com', sourcecountry:'egypt' },
+];
 
 // ── Build news payload (same logic as server.py) ──
 function buildNewsPayload(articles) {
@@ -761,9 +827,20 @@ async function loadAll() {
   $loaderText.textContent = 'Loading country boundaries…';
   $status.textContent = 'LOADING COUNTRIES…';
 
+  async function fetchJson(url) {
+    try {
+      const r = await fetch(url);
+      if (r.ok) return r.json();
+    } catch (_) {}
+    const r2 = await fetch(proxied(url));
+    if (!r2.ok) throw new Error(`Failed to load ${url} (HTTP ${r2.status})`);
+    const w = await r2.json();
+    return JSON.parse(w.contents);
+  }
+
   const [countriesResp, citiesResp] = await Promise.all([
-    fetch(COUNTRIES_URL).then(r => r.json()),
-    fetch(CITIES_URL).then(r => r.json()),
+    fetchJson(COUNTRIES_URL),
+    fetchJson(CITIES_URL),
   ]);
   countriesGeo = countriesResp;
   citiesGeo = citiesResp;
